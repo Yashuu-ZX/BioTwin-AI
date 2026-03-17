@@ -1,0 +1,54 @@
+# Layer 5: Azure / AWS Real-World Cluster Deployment
+version: '3.8'
+
+services:
+  # Main AI Gateway & Traffic Controller
+  biotwin-gateway:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: biotwin_backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb_cluster:27017/biotwin}
+      - JWT_SECRET=enterprisesecret9929281
+    networks:
+      - healthcare_net
+    depends_on:
+      - mongodb_cluster
+
+  # Decentralized Database
+  mongodb_cluster:
+    image: mongo:6.0
+    container_name: biotwin_db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - healthcare_net
+
+  # Secure Frontend Reverse Proxy Deployment
+  biotwin-dashboard:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: biotwin_frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - healthcare_net
+    depends_on:
+      - biotwin-gateway
+
+networks:
+  healthcare_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
