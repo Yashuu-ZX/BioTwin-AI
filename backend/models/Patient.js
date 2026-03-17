@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const { mongoose } = require('../config/mongo');
 
 const PatientSchema = new mongoose.Schema({
   patientId: { type: String, required: true, unique: true },

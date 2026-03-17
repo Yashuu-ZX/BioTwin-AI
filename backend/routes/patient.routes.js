@@ -4,6 +4,7 @@ const mockDB = require('../data/mockDatabase');
 const { v4: uuidv4 } = require('uuid');
 const intakeService = require('../services/intake.service');
 const Patient = require('../models/Patient');
+const { isMongoReady } = require('../config/mongo');
 
 // Add new Intake Endpoint
 router.post('/intake', async (req, res) => {
@@ -24,7 +25,9 @@ router.post('/intake', async (req, res) => {
     
     // Save to MongoDB
     try {
+      if (isMongoReady()) {
       await Patient.create(newPatient);
+      }
     } catch (dbErr) {
       console.warn("MongoDB save failed, relying on mockDB:", dbErr.message);
     }
@@ -58,8 +61,10 @@ router.post('/', async (req, res) => {
 
   mockDB.addPatient(newPatient);
   try {
-     await Patient.create(newPatient);
-  } catch(e) {}
+     if (isMongoReady()) {
+      await Patient.create(newPatient);
+     }
+   } catch(e) {}
   
   res.status(201).json(newPatient);
 });
@@ -67,11 +72,13 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   let patient;
   try {
+     if (isMongoReady()) {
      // try Mongo first
-     const queryPatient = await Patient.findOne({ patientId: req.params.id });
-     // fallback if using generic ID field in some places
-     if (queryPatient) patient = queryPatient;
-     if (!patient) patient = await Patient.findOne({ id: req.params.id });
+      const queryPatient = await Patient.findOne({ patientId: req.params.id });
+      // fallback if using generic ID field in some places
+      if (queryPatient) patient = queryPatient;
+      if (!patient) patient = await Patient.findOne({ id: req.params.id });
+     }
   } catch(e) {}
   
   if (!patient) {
@@ -85,7 +92,9 @@ router.get('/:id', async (req, res) => {
 router.get('/', async (req, res) => {
   let patients = [];
   try {
-     patients = await Patient.find({});
+     if (isMongoReady()) {
+      patients = await Patient.find({});
+     }
   } catch(e) {}
   
   if (patients.length === 0) patients = mockDB.getAllPatients();

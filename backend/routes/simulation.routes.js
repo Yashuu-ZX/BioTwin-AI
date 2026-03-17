@@ -1,16 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const mockDB = require('../data/mockDatabase');
-const aiMockService = require('../services/aiMock.service');
+const digitalTwinService = require('../services/digitalTwin.service');
+const Patient = require('../models/Patient');
+const { isMongoReady } = require('../config/mongo');
 
-router.post('/simulate', async (req, res) => {
-  const { patientId, treatmentOption, dosage, duration } = req.body;
+const getPatientRecord = async (patientId) => {
+  let patient = null;
 
-  if (!patientId || !treatmentOption) {
-    return res.status(400).json({ error: "patientId and treatmentOption are required" });
+  try {
+    if (isMongoReady()) {
+      patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
+    }
+  } catch (error) {
+    patient = null;
   }
 
-  const patient = mockDB.getPatient(patientId);
+  return patient || mockDB.getPatient(patientId);
+};
+
+router.post('/simulate', async (req, res) => {
+  const { patientId, treatmentPlan } = req.body;
+
+  if (!patientId || !treatmentPlan) {
+    return res.status(400).json({ error: "patientId and treatmentPlan are required" });
+  }
+
+  const patient = await getPatientRecord(patientId);
   if (!patient) {
     return res.status(404).json({ error: "Patient not found" });
   }
@@ -18,15 +34,32 @@ router.post('/simulate', async (req, res) => {
   // Simulate delay to make it feel like AI processing
   await new Promise(resolve => setTimeout(resolve, 1500));
 
-  const simulationResult = aiMockService.simulateTreatment(patient, treatmentOption, dosage, duration);
+  const simulationResult = digitalTwinService.runFullSimulation(patient, treatmentPlan);
+  mockDB.addSimulation(patientId, {
+    patientId,
+    treatmentPlan,
+    ...simulationResult,
+    timestamp: new Date().toISOString()
+  });
 
   res.json({
     patientId,
-    treatmentOption,
-    dosage,
-    duration,
+    treatmentPlan,
     ...simulationResult,
     timestamp: new Date()
+  });
+});
+
+router.get('/simulate/:patientId/history', async (req, res) => {
+  const patient = await getPatientRecord(req.params.patientId);
+
+  if (!patient) {
+    return res.status(404).json({ error: 'Patient not found' });
+  }
+
+  res.json({
+    patientId: req.params.patientId,
+    history: mockDB.getSimulations(req.params.patientId)
   });
 });
 
@@ -44,6 +77,23 @@ router.post('/predict', async (req, res) => {
   res.json({
     baseRiskScore: riskScore.toFixed(2),
     recommendedAction: riskScore > 50 ? "Intervention Required" : "Monitor Vitals"
+  });
+});
+
+router.get('/predict/:patientId', async (req, res) => {
+  const patient = await getPatientRecord(req.params.patientId);
+
+  if (!patient) {
+    return res.status(404).json({ error: 'Patient not found' });
+  }
+
+  const twin = digitalTwinService.createDigitalTwin(patient);
+  res.json({
+    patientId: req.params.patientId,
+    baseRiskScore: (twin.riskScore * 100).toFixed(2),
+    riskLevel: twin.riskLevel,
+    diseaseState: twin.diseaseState,
+    recommendedAction: twin.riskLevel === 'High' ? 'Immediate personalized intervention' : twin.riskLevel === 'Medium' ? 'Run comparative treatment simulation' : 'Continue monitoring and preventive plan'
   });
 });
 

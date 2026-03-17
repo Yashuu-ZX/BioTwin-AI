@@ -1,12 +1,13 @@
-const mongoose = require('mongoose');
+const { mongoose } = require('./mongo');
 
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/biotwin');
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    return true;
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
+    console.warn(`MongoDB unavailable, continuing with in-memory store: ${error.message}`);
+    return false;
   }
 };
 
