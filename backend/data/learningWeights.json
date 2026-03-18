@@ -1,7 +1,7 @@
 {
-  "modelAccuracy": 94.53,
+  "modelAccuracy": 94.32,
   "learningStatus": "Stable",
-  "totalFeedbackProcessed": 24,
+  "totalFeedbackProcessed": 25,
   "protocolAdjustments": {
     "Conservative": {
       "effectivenessMod": 1,
@@ -9,7 +9,7 @@
     },
     "Standard": {
       "effectivenessMod": 1,
-      "riskMod": 0.8399999999999999
+      "riskMod": 0.8199999999999998
     },
     "Aggressive": {
       "effectivenessMod": 1,
@@ -182,6 +182,13 @@
       "patientId": "6002f9a011633fdc6a503a67ca7c9bb9",
       "treatmentUsed": "Standard",
       "timestamp": "2026-03-17T20:40:30.913Z",
+      "predictionAccuracy": 93.5,
+      "errorMargin": 6.5
+    },
+    {
+      "patientId": "f57ee460f55158a95236133ab4af66f3",
+      "treatmentUsed": "Standard",
+      "timestamp": "2026-03-18T03:24:14.849Z",
       "predictionAccuracy": 93.5,
       "errorMargin": 6.5
     }
