@@ -6,6 +6,51 @@ const intakeService = require('../services/intake.service');
 const Patient = require('../models/Patient');
 const { isMongoReady } = require('../config/mongo');
 
+router.post('/parse-lab', (req, res) => {
+  const { rawText } = req.body;
+  if (!rawText) return res.status(400).json({ error: 'rawText required' });
+
+  try {
+    const parsed = intakeService.parseLabPanel(rawText);
+    res.json(parsed);
+  } catch (error) {
+    console.error('Lab parse error:', error);
+    res.status(500).json({ error: 'Failed to parse lab panel.' });
+  }
+});
+
+router.get('/demo-cases', (req, res) => {
+  res.json(intakeService.getDemoCases().map(({ slug, title, disease }) => ({ slug, title, disease })));
+});
+
+router.post('/demo-seed/:slug', async (req, res) => {
+  const demo = intakeService.getDemoCases().find((item) => item.slug === req.params.slug);
+  if (!demo) return res.status(404).json({ error: 'Demo case not found' });
+
+  try {
+    const structuredProfile = intakeService.processIntake(demo.payload);
+    const newPatient = { id: structuredProfile.patientId, ...structuredProfile };
+    mockDB.addPatient(newPatient);
+
+    try {
+      if (isMongoReady()) {
+        await Patient.create(newPatient);
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB save failed for demo case:', dbErr.message);
+    }
+
+    res.status(201).json({
+      patientId: newPatient.patientId,
+      demo: { slug: demo.slug, title: demo.title, disease: demo.disease },
+      message: 'Demo patient seeded successfully',
+    });
+  } catch (error) {
+    console.error('Demo seed error:', error);
+    res.status(500).json({ error: 'Failed to seed demo patient.' });
+  }
+});
+
 // Add new Intake Endpoint
 router.post('/intake', async (req, res) => {
   try {

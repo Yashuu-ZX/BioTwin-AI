@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../api/apiClient';
-import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot } from 'lucide-react';
+import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot, CheckCircle2, AlertTriangle, BrainCircuit, Sparkles } from 'lucide-react';
 
 const steps = [
   { id: 1, title: 'Basic Profile', icon: User },
@@ -10,15 +10,19 @@ const steps = [
   { id: 4, title: 'Medications', icon: Pill },
   { id: 5, title: 'Lifestyle', icon: Dna },
   { id: 6, title: 'Vitals Input', icon: HeartPulse },
-  { id: 7, title: 'Lab Reports', icon: Microscope },
-  { id: 8, title: 'Disease Mapping', icon: Dna },
+  { id: 7, title: 'Biomarkers', icon: BrainCircuit },
+  { id: 8, title: 'Disease Mapping', icon: Microscope },
   { id: 9, title: 'Treatment Goal', icon: Target }
 ];
 
-const PatientForm = () => {
+const PatientForm = ({ role = 'doctor', darkMode = false }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState({ type: '', message: '' });
+  const [labPanelText, setLabPanelText] = useState('');
+  const [parsingLab, setParsingLab] = useState(false);
   
   // State for all 9 steps
   const [formData, setFormData] = useState({
@@ -26,6 +30,13 @@ const PatientForm = () => {
     symptoms: [], symptomSeverity: 5, symptomDuration: '',
     medicalHistory: { conditions: [], surgeries: '', familyHistory: '' },
     medications: [{ name: '', dosage: '', frequency: '' }],
+    biomarkers: {
+      genomicVariant: 'Not Assessed',
+      therapyTarget: 'Broad Standard of Care',
+      expressionLevel: 'Unknown',
+      resistanceMarker: 'None reported',
+      immuneProfile: 'Baseline'
+    },
     lifestyle: { smoking: 'No', alcohol: 'No', exercise: 'None', diet: 'Average' },
     vitals: { heartRate: 80, bpSystolic: 120, bpDiastolic: 80, sugar: 100, spO2: 98, temperature: 98.6 },
     disease: 'Unknown',
@@ -44,25 +55,63 @@ const PatientForm = () => {
       symptoms: ['Chest Pain', 'Shortness of Breath'], symptomSeverity: 8, symptomDuration: 3,
       medicalHistory: { conditions: ['Hypertension', 'Type 2 Diabetes'], surgeries: 'Appendectomy (2010)', familyHistory: 'Father had early CAD.' },
       medications: [{ name: 'Metformin', dosage: '500mg', frequency: 'Twice daily' }, { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily' }],
+      biomarkers: {
+        genomicVariant: 'CYP2C19 reduced metabolizer',
+        therapyTarget: 'Cardio-metabolic risk modulation',
+        expressionLevel: 'Elevated inflammatory burden',
+        resistanceMarker: 'Statin-associated intolerance risk',
+        immuneProfile: 'Chronic low-grade inflammation'
+      },
       lifestyle: { smoking: 'Past', alcohol: 'Occasionally', exercise: 'Rarely', diet: 'Poor' },
       vitals: { heartRate: 88, bpSystolic: 145, bpDiastolic: 92, sugar: 142, spO2: 95, temperature: 98.4 },
       disease: 'Cardiac',
       treatmentGoal: 'Fast Recovery'
     });
     setCurrentStep(9);
+    setSubmitStatus({ type: 'info', message: 'Demo patient loaded. Review the profile and generate the twin model.' });
   };
+
+  useEffect(() => {
+    if (searchParams.get('demo') === '1' && role !== 'patient') {
+      autoFill();
+    }
+  }, [searchParams, role]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSubmitStatus({ type: 'loading', message: 'Digitizing profile and constructing patient twin...' });
     try {
       const response = await apiClient.post('/patient/intake', formData);
+      setSubmitStatus({ type: 'success', message: 'Digital twin created. Opening the clinical dashboard...' });
       navigate(`/dashboard/${response.data.patientId}`);
     } catch (err) {
       console.error(err);
-      alert('Failed to construct Digital Health Profile. Check console.');
+      const message = err?.response?.data?.error || 'Failed to construct Digital Health Profile. Please try again.';
+      setSubmitStatus({ type: 'error', message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const parseLabPanel = async () => {
+    if (!labPanelText.trim()) return;
+    setParsingLab(true);
+    setSubmitStatus({ type: 'loading', message: 'Parsing lab panel into structured biomarkers...' });
+    try {
+      const response = await apiClient.post('/patient/parse-lab', { rawText: labPanelText });
+      const { parsedVitals, parsedBiomarkers, summary } = response.data;
+      setFormData((prev) => ({
+        ...prev,
+        vitals: { ...prev.vitals, ...parsedVitals },
+        biomarkers: { ...prev.biomarkers, ...parsedBiomarkers },
+      }));
+      setSubmitStatus({ type: 'success', message: summary });
+    } catch (err) {
+      console.error(err);
+      setSubmitStatus({ type: 'error', message: 'Failed to parse lab panel text.' });
+    } finally {
+      setParsingLab(false);
     }
   };
 
@@ -75,108 +124,145 @@ const PatientForm = () => {
 
   const toggleArray = (arr, item) => arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
 
+  const shellClass = darkMode
+    ? 'min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_26%),linear-gradient(180deg,_#07111f_0%,_#0f172a_100%)]'
+    : 'min-h-screen bg-[radial-gradient(circle_at_top,_rgba(217,255,102,0.24),_transparent_26%),linear-gradient(180deg,_#edf5e8_0%,_#deefd2_100%)]';
+  const heroCardClass = darkMode
+    ? 'border-slate-800 bg-slate-900/75 text-white'
+    : 'border-white/70 bg-[#f6f3ee]/88 text-slate-900 shadow-[0_24px_80px_rgba(80,110,88,0.12)]';
+  const bigCardClass = darkMode
+    ? 'glass-panel border-slate-700/50'
+    : 'border border-white/70 bg-[#f6f3ee]/92 shadow-[0_24px_80px_rgba(80,110,88,0.12)]';
+  const sidebarClass = darkMode
+    ? 'bg-slate-900/80 border-slate-800 text-white'
+    : 'bg-white/65 border-black/5 text-slate-900';
+  const contentClass = darkMode
+    ? 'bg-[#0f172a] text-white'
+    : 'bg-[linear-gradient(180deg,#f8f6f0_0%,#f3f8ed_100%)] text-slate-900';
+  const inputClass = darkMode
+    ? 'w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white'
+    : 'w-full bg-[#f1eee7] border border-black/5 rounded-xl p-3 text-slate-900 placeholder:text-slate-400';
+  const labelClass = darkMode ? 'text-sm text-slate-400' : 'text-sm text-slate-500';
+  const mutedTextClass = darkMode ? 'text-slate-400' : 'text-slate-600';
+  const chipIdleClass = darkMode
+    ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
+    : 'bg-white border-black/10 text-slate-600 hover:border-lime-300 hover:bg-lime-50';
+  const sectionCardClass = darkMode ? 'bg-slate-950/70 border-slate-800' : 'bg-white/80 border-black/5';
+
   const renderStep = () => {
     switch (currentStep) {
       case 1: return (
         <div className="space-y-4 animate-fadeIn">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm text-slate-400">Full Name</label><input type="text" value={formData.name} onChange={e => updateForm('name', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" placeholder="John Doe" /></div>
-            <div><label className="text-sm text-slate-400">Age</label><input type="number" value={formData.age} onChange={e => updateForm('age', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" placeholder="45" /></div>
-            <div><label className="text-sm text-slate-400">Gender</label><select value={formData.gender} onChange={e => updateForm('gender', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>Male</option><option>Female</option><option>Other</option></select></div>
-            <div><label className="text-sm text-slate-400">Blood Group</label><select value={formData.bloodGroup} onChange={e => updateForm('bloodGroup', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></div>
-            <div><label className="text-sm text-slate-400">Height (cm)</label><input type="number" value={formData.height} onChange={e => updateForm('height', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" placeholder="175" /></div>
-            <div><label className="text-sm text-slate-400">Weight (kg)</label><input type="number" value={formData.weight} onChange={e => updateForm('weight', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" placeholder="70" /></div>
+            <div><label className={labelClass}>Full Name</label><input type="text" value={formData.name} onChange={e => updateForm('name', e.target.value)} className={inputClass} placeholder="John Doe" /></div>
+            <div><label className={labelClass}>Age</label><input type="number" value={formData.age} onChange={e => updateForm('age', e.target.value)} className={inputClass} placeholder="45" /></div>
+            <div><label className={labelClass}>Gender</label><select value={formData.gender} onChange={e => updateForm('gender', e.target.value)} className={inputClass}><option>Male</option><option>Female</option><option>Other</option></select></div>
+            <div><label className={labelClass}>Blood Group</label><select value={formData.bloodGroup} onChange={e => updateForm('bloodGroup', e.target.value)} className={inputClass}><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></div>
+            <div><label className={labelClass}>Height (cm)</label><input type="number" value={formData.height} onChange={e => updateForm('height', e.target.value)} className={inputClass} placeholder="175" /></div>
+            <div><label className={labelClass}>Weight (kg)</label><input type="number" value={formData.weight} onChange={e => updateForm('weight', e.target.value)} className={inputClass} placeholder="70" /></div>
           </div>
         </div>
       );
       case 2: return (
         <div className="space-y-6 animate-fadeIn">
           <div>
-            <label className="text-sm text-slate-400 block mb-2">Select Primary Symptoms</label>
+            <label className={`${labelClass} block mb-2`}>Select Primary Symptoms</label>
             <div className="flex flex-wrap gap-2">
               {symptomList.map(sym => (
-                <button key={sym} type="button" onClick={() => updateForm('symptoms', toggleArray(formData.symptoms, sym))} className={`px-4 py-2 rounded-full border text-sm transition-all ${formData.symptoms.includes(sym) ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}>{sym}</button>
+                <button key={sym} type="button" onClick={() => updateForm('symptoms', toggleArray(formData.symptoms, sym))} className={`px-4 py-2 rounded-full border text-sm transition-all ${formData.symptoms.includes(sym) ? (darkMode ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-lime-100 border-lime-300 text-lime-700') : chipIdleClass}`}>{sym}</button>
               ))}
             </div>
           </div>
           <div>
-            <label className="text-sm text-slate-400 block mb-2 flex justify-between"><span>Symptom Severity (1-10)</span> <span className="text-white font-bold">{formData.symptomSeverity}</span></label>
+            <label className={`${labelClass} block mb-2 flex justify-between`}><span>Symptom Severity (1-10)</span> <span className={darkMode ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{formData.symptomSeverity}</span></label>
             <input type="range" min="1" max="10" value={formData.symptomSeverity} onChange={e => updateForm('symptomSeverity', parseInt(e.target.value))} className="w-full accent-blue-500" />
           </div>
-          <div><label className="text-sm text-slate-400">Duration (Days)</label><input type="number" value={formData.symptomDuration} onChange={e => updateForm('symptomDuration', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mt-1" placeholder="e.g. 5" /></div>
+          <div><label className={labelClass}>Duration (Days)</label><input type="number" value={formData.symptomDuration} onChange={e => updateForm('symptomDuration', e.target.value)} className={`${inputClass} mt-1`} placeholder="e.g. 5" /></div>
         </div>
       );
       case 3: return (
         <div className="space-y-5 animate-fadeIn">
           <div>
-            <label className="text-sm text-slate-400 block mb-2">Pre-existing Conditions</label>
+            <label className={`${labelClass} block mb-2`}>Pre-existing Conditions</label>
             <div className="flex flex-wrap gap-2">
               {conditionList.map(cond => (
-                 <button key={cond} type="button" onClick={() => updateNested('medicalHistory', 'conditions', toggleArray(formData.medicalHistory.conditions, cond))} className={`px-4 py-2 rounded-full border text-sm transition-all ${formData.medicalHistory.conditions.includes(cond) ? 'bg-red-500/20 border-red-500 text-red-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}>{cond}</button>
+                 <button key={cond} type="button" onClick={() => updateNested('medicalHistory', 'conditions', toggleArray(formData.medicalHistory.conditions, cond))} className={`px-4 py-2 rounded-full border text-sm transition-all ${formData.medicalHistory.conditions.includes(cond) ? (darkMode ? 'bg-red-500/20 border-red-500 text-red-300' : 'bg-lime-100 border-lime-300 text-lime-700') : chipIdleClass}`}>{cond}</button>
               ))}
             </div>
           </div>
-          <div><label className="text-sm text-slate-400 block mb-1">Past Surgeries / Operations</label><textarea value={formData.medicalHistory.surgeries} onChange={e => updateNested('medicalHistory', 'surgeries', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-24" placeholder="None" /></div>
-          <div><label className="text-sm text-slate-400 block mb-1">Family History</label><textarea value={formData.medicalHistory.familyHistory} onChange={e => updateNested('medicalHistory', 'familyHistory', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-24" placeholder="Mother: Hypertension" /></div>
+          <div><label className={`${labelClass} block mb-1`}>Past Surgeries / Operations</label><textarea value={formData.medicalHistory.surgeries} onChange={e => updateNested('medicalHistory', 'surgeries', e.target.value)} className={`${inputClass} h-24`} placeholder="None" /></div>
+          <div><label className={`${labelClass} block mb-1`}>Family History</label><textarea value={formData.medicalHistory.familyHistory} onChange={e => updateNested('medicalHistory', 'familyHistory', e.target.value)} className={`${inputClass} h-24`} placeholder="Mother: Hypertension" /></div>
         </div>
       );
       case 4: return (
         <div className="space-y-4 animate-fadeIn">
            {formData.medications.map((med, idx) => (
-             <div key={idx} className="grid grid-cols-12 gap-2 pb-4 border-b border-slate-700/50">
-               <div className="col-span-12 md:col-span-5"><label className="text-xs text-slate-500">Drug Name</label><input type="text" value={med.name} onChange={e => {
-                  const newMeds = [...formData.medications]; newMeds[idx].name = e.target.value; updateForm('medications', newMeds);
-               }} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" placeholder="Drug Name" /></div>
-               <div className="col-span-6 md:col-span-3"><label className="text-xs text-slate-500">Dosage</label><input type="text" value={med.dosage} onChange={e => {
-                  const newMeds = [...formData.medications]; newMeds[idx].dosage = e.target.value; updateForm('medications', newMeds);
-               }} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" placeholder="20mg" /></div>
-               <div className="col-span-6 md:col-span-4"><label className="text-xs text-slate-500">Frequency</label><input type="text" value={med.frequency} onChange={e => {
-                  const newMeds = [...formData.medications]; newMeds[idx].frequency = e.target.value; updateForm('medications', newMeds);
-               }} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white" placeholder="Once daily" /></div>
-             </div>
-           ))}
-           <button type="button" onClick={() => updateForm('medications', [...formData.medications, { name: '', dosage: '', frequency: '' }])} className="text-sm text-blue-400 hover:text-blue-300">+ Add Medication</button>
-        </div>
+             <div key={idx} className={`grid grid-cols-12 gap-2 pb-4 border-b ${darkMode ? 'border-slate-700/50' : 'border-black/5'}`}>
+                <div className="col-span-12 md:col-span-5"><label className="text-xs text-slate-500">Drug Name</label><input type="text" value={med.name} onChange={e => {
+                   const newMeds = [...formData.medications]; newMeds[idx].name = e.target.value; updateForm('medications', newMeds);
+                }} className={inputClass} placeholder="Drug Name" /></div>
+                <div className="col-span-6 md:col-span-3"><label className="text-xs text-slate-500">Dosage</label><input type="text" value={med.dosage} onChange={e => {
+                   const newMeds = [...formData.medications]; newMeds[idx].dosage = e.target.value; updateForm('medications', newMeds);
+                }} className={inputClass} placeholder="20mg" /></div>
+                <div className="col-span-6 md:col-span-4"><label className="text-xs text-slate-500">Frequency</label><input type="text" value={med.frequency} onChange={e => {
+                   const newMeds = [...formData.medications]; newMeds[idx].frequency = e.target.value; updateForm('medications', newMeds);
+                }} className={inputClass} placeholder="Once daily" /></div>
+              </div>
+            ))}
+            <button type="button" onClick={() => updateForm('medications', [...formData.medications, { name: '', dosage: '', frequency: '' }])} className={`text-sm font-semibold ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-lime-700 hover:text-lime-800'}`}>+ Add Medication</button>
+         </div>
       );
       case 5: return (
         <div className="space-y-4 animate-fadeIn">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm text-slate-400">Smoking</label><select value={formData.lifestyle.smoking} onChange={e => updateNested('lifestyle', 'smoking', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>No</option><option>Past</option><option>Yes</option></select></div>
-            <div><label className="text-sm text-slate-400">Alcohol</label><select value={formData.lifestyle.alcohol} onChange={e => updateNested('lifestyle', 'alcohol', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>No</option><option>Rarely</option><option>Occasionally</option><option>Frequently</option></select></div>
-            <div><label className="text-sm text-slate-400">Exercise</label><select value={formData.lifestyle.exercise} onChange={e => updateNested('lifestyle', 'exercise', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>None</option><option>Rarely</option><option>Moderate</option><option>Active</option></select></div>
-            <div><label className="text-sm text-slate-400">Diet</label><select value={formData.lifestyle.diet} onChange={e => updateNested('lifestyle', 'diet', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"><option>Poor</option><option>Average</option><option>Healthy</option></select></div>
+            <div><label className={labelClass}>Smoking</label><select value={formData.lifestyle.smoking} onChange={e => updateNested('lifestyle', 'smoking', e.target.value)} className={inputClass}><option>No</option><option>Past</option><option>Yes</option></select></div>
+            <div><label className={labelClass}>Alcohol</label><select value={formData.lifestyle.alcohol} onChange={e => updateNested('lifestyle', 'alcohol', e.target.value)} className={inputClass}><option>No</option><option>Rarely</option><option>Occasionally</option><option>Frequently</option></select></div>
+            <div><label className={labelClass}>Exercise</label><select value={formData.lifestyle.exercise} onChange={e => updateNested('lifestyle', 'exercise', e.target.value)} className={inputClass}><option>None</option><option>Rarely</option><option>Moderate</option><option>Active</option></select></div>
+            <div><label className={labelClass}>Diet</label><select value={formData.lifestyle.diet} onChange={e => updateNested('lifestyle', 'diet', e.target.value)} className={inputClass}><option>Poor</option><option>Average</option><option>Healthy</option></select></div>
           </div>
         </div>
       );
       case 6: return (
         <div className="space-y-4 animate-fadeIn">
            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <div><label className="text-sm text-slate-400">Heart Rate (bpm)</label><input type="number" value={formData.vitals.heartRate} onChange={e => updateNested('vitals', 'heartRate', parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" /></div>
-            <div><label className="text-sm text-slate-400">BP Systolic</label><input type="number" value={formData.vitals.bpSystolic} onChange={e => updateNested('vitals', 'bpSystolic', parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white text-red-400" /></div>
-            <div><label className="text-sm text-slate-400">BP Diastolic</label><input type="number" value={formData.vitals.bpDiastolic} onChange={e => updateNested('vitals', 'bpDiastolic', parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white text-blue-400" /></div>
-            <div><label className="text-sm text-slate-400">Fasting Sugar (mg/dL)</label><input type="number" value={formData.vitals.sugar} onChange={e => updateNested('vitals', 'sugar', parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" /></div>
-            <div><label className="text-sm text-slate-400">SpO2 (%)</label><input type="number" value={formData.vitals.spO2} onChange={e => updateNested('vitals', 'spO2', parseInt(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" /></div>
-            <div><label className="text-sm text-slate-400">Body Temp (°F)</label><input type="number" value={formData.vitals.temperature} onChange={e => updateNested('vitals', 'temperature', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white" /></div>
+            <div><label className={labelClass}>Heart Rate (bpm)</label><input type="number" value={formData.vitals.heartRate} onChange={e => updateNested('vitals', 'heartRate', parseInt(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>BP Systolic</label><input type="number" value={formData.vitals.bpSystolic} onChange={e => updateNested('vitals', 'bpSystolic', parseInt(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>BP Diastolic</label><input type="number" value={formData.vitals.bpDiastolic} onChange={e => updateNested('vitals', 'bpDiastolic', parseInt(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>Fasting Sugar (mg/dL)</label><input type="number" value={formData.vitals.sugar} onChange={e => updateNested('vitals', 'sugar', parseInt(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>SpO2 (%)</label><input type="number" value={formData.vitals.spO2} onChange={e => updateNested('vitals', 'spO2', parseInt(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>Body Temp (°F)</label><input type="number" value={formData.vitals.temperature} onChange={e => updateNested('vitals', 'temperature', parseFloat(e.target.value))} className={inputClass} /></div>
            </div>
         </div>
       );
       case 7: return (
-        <div className="h-48 border-2 border-dashed border-slate-600 rounded-xl flex items-center justify-center text-slate-400 animate-fadeIn hover:border-slate-400 hover:text-slate-300 transition-all cursor-pointer bg-slate-800/50">
-           <div className="text-center">
-             <Microscope size={36} className="mx-auto mb-2 text-indigo-400" />
-             <p className="font-medium">Upload Lab PDF Reports (Optional)</p>
-             <p className="text-xs mt-1">AI will parse biochemistry markers automatically.</p>
-           </div>
+        <div className="space-y-4 animate-fadeIn">
+          <div className={`rounded-2xl border p-4 text-sm ${darkMode ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100' : 'border-lime-200 bg-lime-50 text-lime-700'}`}>
+            Capture high-value biomarker context to make the twin more useful for specialized and biotech-driven treatment selection.
+          </div>
+          <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
+            <label className={`text-sm flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}><Microscope size={16} className={darkMode ? 'text-cyan-300' : 'text-lime-600'} /> Mock Lab Panel Parser</label>
+            <textarea value={labPanelText} onChange={e => setLabPanelText(e.target.value)} className={`${inputClass} h-28`} placeholder="Paste text like: Glucose 144, BP 145/92, SpO2 95, Variant EGFR exon 19, Target EGFR pathway, Resistance none, Immune inflamed" />
+            <button type="button" onClick={parseLabPanel} disabled={parsingLab || !labPanelText.trim()} className={`rounded-xl px-4 py-2 text-sm font-semibold disabled:bg-slate-700 disabled:text-slate-400 ${darkMode ? 'bg-cyan-500 text-slate-950' : 'bg-lime-500 text-slate-900'}`}>
+              {parsingLab ? 'Parsing...' : 'Parse Lab Panel'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className={labelClass}>Genomic Variant</label><input type="text" value={formData.biomarkers.genomicVariant} onChange={e => updateNested('biomarkers', 'genomicVariant', e.target.value)} className={inputClass} placeholder="e.g. EGFR exon 19, CYP2C19 reduced metabolizer" /></div>
+            <div><label className={labelClass}>Therapy Target</label><input type="text" value={formData.biomarkers.therapyTarget} onChange={e => updateNested('biomarkers', 'therapyTarget', e.target.value)} className={inputClass} placeholder="e.g. HER2, inflammatory axis" /></div>
+            <div><label className={labelClass}>Expression Level</label><input type="text" value={formData.biomarkers.expressionLevel} onChange={e => updateNested('biomarkers', 'expressionLevel', e.target.value)} className={inputClass} placeholder="High / Medium / Low / Unknown" /></div>
+            <div><label className={labelClass}>Resistance Marker</label><input type="text" value={formData.biomarkers.resistanceMarker} onChange={e => updateNested('biomarkers', 'resistanceMarker', e.target.value)} className={inputClass} placeholder="e.g. KRAS, prior treatment resistance" /></div>
+            <div className="md:col-span-2"><label className={labelClass}>Immune / Inflammatory Profile</label><input type="text" value={formData.biomarkers.immuneProfile} onChange={e => updateNested('biomarkers', 'immuneProfile', e.target.value)} className={inputClass} placeholder="e.g. immune-cold, inflamed, chronic low-grade inflammation" /></div>
+          </div>
         </div>
       );
       case 8: return (
         <div className="space-y-4 animate-fadeIn">
-            <label className="text-sm text-slate-400">Primary Classification Pathway</label>
+            <label className={labelClass}>Primary Classification Pathway</label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
               {['Cardiac', 'Respiratory', 'Metabolic', 'Neurological', 'Oncology', 'Unknown'].map(d => (
-                <div key={d} onClick={() => updateForm('disease', d)} className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${formData.disease === d ? 'border-purple-500 bg-purple-500/20 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.disease === d ? 'border-purple-400' : 'border-slate-500'}`}>
-                    {formData.disease === d && <div className="w-2 h-2 bg-purple-400 rounded-full" />}
+                <div key={d} onClick={() => updateForm('disease', d)} className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${formData.disease === d ? (darkMode ? 'border-purple-500 bg-purple-500/20 text-white shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'border-lime-300 bg-lime-100 text-slate-900 shadow-[0_10px_20px_rgba(163,230,53,0.2)]') : (darkMode ? 'border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700' : 'border-black/5 bg-white text-slate-600 hover:bg-lime-50')}`}>
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.disease === d ? (darkMode ? 'border-purple-400' : 'border-lime-500') : (darkMode ? 'border-slate-500' : 'border-slate-300')}`}>
+                    {formData.disease === d && <div className={`w-2 h-2 rounded-full ${darkMode ? 'bg-purple-400' : 'bg-lime-500'}`} />}
                   </div>
                   {d}
                 </div>
@@ -186,8 +272,8 @@ const PatientForm = () => {
       );
       case 9: return (
         <div className="space-y-4 animate-fadeIn">
-            <label className="text-sm text-slate-400">Optimization Goal for Simulation AI</label>
-            <select value={formData.treatmentGoal} onChange={e => updateForm('treatmentGoal', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-white font-medium text-lg">
+            <label className={labelClass}>Optimization Goal for Simulation AI</label>
+            <select value={formData.treatmentGoal} onChange={e => updateForm('treatmentGoal', e.target.value)} className={`${inputClass} font-medium text-lg`}>
               <optgroup label="Clinical Goals">
                  <option>Low Risk / Conservative</option>
                  <option>Fast Recovery</option>
@@ -198,10 +284,10 @@ const PatientForm = () => {
               </optgroup>
             </select>
             
-            <div className="mt-8 p-6 bg-blue-500/10 border border-blue-500/20 rounded-xl text-center">
-               <Bot className="mx-auto mb-3 text-blue-400 animate-pulse" size={32} />
-               <h3 className="text-blue-200 font-bold mb-1">Ready to synthesize Twin Profile</h3>
-               <p className="text-xs text-blue-300/70 max-w-sm mx-auto">This securely compiles 42+ biological data points into a unique signature for inference engine simulation.</p>
+            <div className={`mt-8 p-6 rounded-xl text-center ${darkMode ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-lime-50 border border-lime-200'}`}>
+               <Bot className={`mx-auto mb-3 animate-pulse ${darkMode ? 'text-blue-400' : 'text-lime-600'}`} size={32} />
+               <h3 className={`font-bold mb-1 ${darkMode ? 'text-blue-200' : 'text-lime-700'}`}>Ready to synthesize Twin Profile</h3>
+               <p className={`text-xs max-w-sm mx-auto ${darkMode ? 'text-blue-300/70' : 'text-lime-700/70'}`}>This securely compiles 42+ biological data points into a unique signature for inference engine simulation.</p>
             </div>
         </div>
       );
@@ -210,14 +296,32 @@ const PatientForm = () => {
   };
 
   return (
-    <div className="min-h-screen pt-24 pb-12 flex justify-center items-center px-4 md:px-0">
-      <div className="glass-panel w-full max-w-4xl p-0 overflow-hidden relative rounded-2xl sm:rounded-3xl border-slate-700/50 flex flex-col md:flex-row">
+    <div className={`${shellClass} pt-16 pb-12 flex justify-center items-center px-4 md:px-0`}>
+      <div className="w-full max-w-6xl space-y-6">
+        <div className={`rounded-[2rem] border p-6 md:p-8 ${heroCardClass}`}>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] ${darkMode ? 'border border-cyan-400/20 bg-cyan-400/10 text-cyan-300' : 'bg-lime-100 text-lime-700'}`}>
+                <Sparkles className="h-3.5 w-3.5" /> Precision Intake Studio
+              </div>
+              <h1 className={`text-3xl md:text-5xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>Build a clinically meaningful digital twin</h1>
+              <p className={`mt-3 max-w-3xl text-base md:text-lg ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{role === 'patient' ? 'Share your symptoms, vitals, and care context so the clinical team can prepare a personalized twin.' : 'Capture phenotype, vitals, lifestyle, and biomarker intelligence before sending the case into treatment simulation.'}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+              <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workflow</p><p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>9-step precision intake</p></div>
+              <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Biology layer</p><p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Biomarkers enabled</p></div>
+              <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Role</p><p className={`mt-2 font-semibold capitalize ${darkMode ? 'text-white' : 'text-slate-900'}`}>{role}</p></div>
+            </div>
+          </div>
+        </div>
+
+      <div className={`w-full max-w-6xl p-0 overflow-hidden relative rounded-2xl sm:rounded-3xl flex flex-col md:flex-row ${bigCardClass}`}>
         
         {/* Left Sidebar - Progress */}
-        <div className="bg-slate-900/80 md:w-1/3 p-6 md:p-8 border-r border-slate-800">
+        <div className={`md:w-1/3 p-6 md:p-8 border-r ${sidebarClass}`}>
            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 mb-8 tracking-wide">
-             Intake Protocol
-           </h2>
+              Intake Protocol
+            </h2>
            
            <div className="hidden md:flex flex-col gap-6 relative">
              <div className="absolute left-[11px] top-6 bottom-6 w-0.5 bg-slate-700 z-0"></div>
@@ -228,12 +332,12 @@ const PatientForm = () => {
                 
                 return (
                   <div key={step.id} className="relative z-10 flex items-center gap-4">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${active ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : past ? 'bg-purple-500/50' : 'bg-slate-800 border-2 border-slate-700'}`}>
-                      {active && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                    </div>
-                    <span className={`text-sm font-medium transition-all ${active ? 'text-white translate-x-1' : past ? 'text-slate-400' : 'text-slate-600'}`}>
-                      {step.title}
-                    </span>
+                     <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${active ? (darkMode ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-lime-500 shadow-[0_0_12px_rgba(163,230,53,0.45)]') : past ? (darkMode ? 'bg-purple-500/50' : 'bg-lime-300') : (darkMode ? 'bg-slate-800 border-2 border-slate-700' : 'bg-[#f1eee7] border-2 border-black/10')}`}>
+                       {active && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                     </div>
+                     <span className={`text-sm font-medium transition-all ${active ? (darkMode ? 'text-white translate-x-1' : 'text-slate-900 translate-x-1') : past ? mutedTextClass : darkMode ? 'text-slate-600' : 'text-slate-400'}`}>
+                       {step.title}
+                     </span>
                   </div>
                 )
              })}
@@ -247,53 +351,83 @@ const PatientForm = () => {
         </div>
 
         {/* Right Content - Form */}
-        <div className="p-6 md:p-10 flex-1 flex flex-col min-h-[500px] relative bg-[#0f172a]">
+         <div className={`p-6 md:p-10 flex-1 flex flex-col min-h-[500px] relative ${contentClass}`}>
           
           <div className="flex justify-between items-start mb-6 align-top">
             <div>
-              <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                {React.createElement(steps[currentStep-1].icon, { className: "text-blue-500", size: 24 })} 
-                {steps[currentStep-1].title}
-              </h3>
-              <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">Layer 1 Collection</p>
-            </div>
+               <h3 className={`text-2xl font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                 {React.createElement(steps[currentStep-1].icon, { className: darkMode ? 'text-blue-500' : 'text-lime-600', size: 24 })} 
+                 {steps[currentStep-1].title}
+               </h3>
+               <p className={`text-xs mt-1 uppercase tracking-wider ${mutedTextClass}`}>Layer 1 Collection</p>
+             </div>
             
-            {currentStep === 1 && (
-              <button type="button" onClick={autoFill} className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-full hover:bg-purple-500/30 transition-all flex items-center gap-1 font-semibold">
-                Auto-fill Sample
-              </button>
+            {currentStep === 1 && role !== 'patient' && (
+               <button type="button" onClick={autoFill} className={`text-xs px-3 py-1.5 rounded-full transition-all flex items-center gap-1 font-semibold ${darkMode ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30' : 'bg-lime-100 text-lime-700 border border-lime-200 hover:bg-lime-200'}`}>
+                 Auto-fill Sample
+               </button>
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-            <div className="flex-1">
-              {renderStep()}
-            </div>
+           <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+             <div className="flex-1">
+               {renderStep()}
+
+               {submitStatus.message && (
+                 <div className={`mt-6 rounded-2xl border p-4 text-sm ${
+                   submitStatus.type === 'success'
+                    ? (darkMode ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-emerald-200 bg-emerald-50 text-emerald-700')
+                     : submitStatus.type === 'error'
+                     ? (darkMode ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' : 'border-rose-200 bg-rose-50 text-rose-700')
+                     : (darkMode ? 'border-blue-500/30 bg-blue-500/10 text-blue-200' : 'border-lime-200 bg-lime-50 text-lime-700')
+                 }`}>
+                   <div className="flex items-start gap-3">
+                     {submitStatus.type === 'success' ? (
+                       <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none" />
+                     ) : submitStatus.type === 'error' ? (
+                       <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" />
+                     ) : (
+                       <Loader2 className={`mt-0.5 h-5 w-5 flex-none ${submitStatus.type === 'loading' ? 'animate-spin' : ''}`} />
+                     )}
+                     <div>
+                       <p className="font-semibold">
+                         {submitStatus.type === 'success'
+                           ? 'Twin ready'
+                           : submitStatus.type === 'error'
+                           ? 'Submission failed'
+                           : 'Processing status'}
+                       </p>
+                       <p className="mt-1 opacity-90">{submitStatus.message}</p>
+                     </div>
+                   </div>
+                 </div>
+               )}
+             </div>
             
-            <div className="mt-8 pt-6 border-t border-slate-800 flex justify-between items-center">
-               <button 
-                 type="button" 
-                 onClick={prevStep}
-                 className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${currentStep === 1 ? 'opacity-0 pointer-events-none' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-               >
-                 <ArrowLeft size={16} /> Back
-               </button>
+             <div className={`mt-8 pt-6 border-t flex justify-between items-center ${darkMode ? 'border-slate-800' : 'border-black/5'}`}>
+                <button 
+                  type="button" 
+                  onClick={prevStep}
+                  className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${currentStep === 1 ? 'opacity-0 pointer-events-none' : darkMode ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+                >
+                  <ArrowLeft size={16} /> Back
+                </button>
                
                {currentStep < 9 ? (
-                 <button 
-                   type="button" 
-                   onClick={nextStep}
-                   className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-lg font-bold transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(37,99,235,0.4)]"
-                 >
-                   Next Step <ArrowRight size={16} />
-                 </button>
+                  <button 
+                    type="button" 
+                    onClick={nextStep}
+                    className={`px-8 py-2.5 rounded-lg font-bold transition-all flex items-center gap-2 ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-lime-500 hover:bg-lime-400 text-slate-900 shadow-[0_10px_25px_rgba(163,230,53,0.35)]'}`}
+                  >
+                    Next Step <ArrowRight size={16} />
+                  </button>
                ) : (
                  <button 
                    type="submit" 
                    disabled={loading || !formData.name}
                    className={`px-8 py-2.5 rounded-lg font-bold transition-all flex items-center gap-2 
-                    ${loading || !formData.name ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 shadow-[0_0_20px_rgba(168,85,247,0.5)]'}`}
-                 >
+                     ${loading || !formData.name ? (darkMode ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-slate-200 text-slate-400 cursor-not-allowed') : (darkMode ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 shadow-[0_0_20px_rgba(168,85,247,0.5)]' : 'bg-gradient-to-r from-lime-400 to-emerald-300 text-slate-900 hover:from-lime-300 hover:to-emerald-200 shadow-[0_12px_30px_rgba(163,230,53,0.35)]')}`}
+                  >
                    {loading ? (
                      <><Loader2 size={16} className="animate-spin" /> Digitizing Profile...</>
                    ) : (
@@ -304,6 +438,7 @@ const PatientForm = () => {
             </div>
           </form>
         </div>
+      </div>
       </div>
       
       <style>{`

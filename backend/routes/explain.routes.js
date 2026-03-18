@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
+const PDFDocument = require('pdfkit');
 const explainService = require('../services/explainability.service');
 const Patient = require('../models/Patient');
 const mockDB = require('../data/mockDatabase');
@@ -52,6 +53,91 @@ router.post('/what-if', async (req, res) => {
   } catch (error) {
     console.error("What-If Engine Error:", error);
     res.status(500).json({ error: "Failed to simulate alternative timeline." });
+  }
+});
+
+router.post('/cohort-match', async (req, res) => {
+  const { patientId, treatmentPlan } = req.body;
+  if (!patientId) return res.status(400).json({ error: 'patientId required' });
+
+  try {
+    const data = await explainService.generateCohortMatches(patientId, treatmentPlan);
+    res.json(data);
+  } catch (error) {
+    console.error('Cohort Match Error:', error);
+    res.status(500).json({ error: 'Failed to generate cohort matches.' });
+  }
+});
+
+router.post('/drug-intelligence', async (req, res) => {
+  const { patientId } = req.body;
+  if (!patientId) return res.status(400).json({ error: 'patientId required' });
+
+  try {
+    const data = await explainService.analyzeDrugInteractions(patientId);
+    res.json(data);
+  } catch (error) {
+    console.error('Drug Intelligence Error:', error);
+    res.status(500).json({ error: 'Failed to analyze drug interactions.' });
+  }
+});
+
+router.post('/report', async (req, res) => {
+  const { patientId, treatmentPlan } = req.body;
+  if (!patientId) return res.status(400).json({ error: 'patientId required' });
+
+  try {
+    const report = await explainService.buildClinicianReport(patientId, treatmentPlan);
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    const filename = `biotwin-report-${patientId}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    doc.pipe(res);
+
+    doc.fontSize(22).text('BioTwin AI Clinician Report', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(11).text(`Generated: ${report.generatedAt}`);
+    doc.text(`Patient: ${report.patient.name} (${report.patient.patientId})`);
+    doc.text(`Disease Pathway: ${report.patient.disease}`);
+    doc.text(`Treatment Plan: ${report.treatmentPlan.type} / ${report.treatmentPlan.dosage} / ${report.treatmentPlan.duration} days`);
+
+    doc.moveDown();
+    doc.fontSize(16).text('Simulation Summary');
+    doc.fontSize(11).text(`Effectiveness: ${report.simulation.effectiveness}%`);
+    doc.text(`Risk: ${report.simulation.risk}%`);
+    doc.text(`Side Effects: ${report.simulation.sideEffects}%`);
+    doc.text(`Best Recommendation: ${report.simulation.recommendation.best.name}`);
+
+    doc.moveDown();
+    doc.fontSize(16).text('Top Risk Drivers');
+    report.xai.slice(0, 4).forEach((item) => doc.fontSize(11).text(`- ${item.feature}: ${item.value} (${item.normalizedWeight}%)`));
+
+    doc.moveDown();
+    doc.fontSize(16).text('Preventive Actions');
+    report.preventive.slice(0, 3).forEach((item) => doc.fontSize(11).text(`- ${item}`));
+
+    doc.moveDown();
+    doc.fontSize(16).text('Cohort Match');
+    doc.fontSize(11).text(`Recommended cohort: ${report.cohort.recommendedCohort.label}`);
+    doc.text(`Similarity: ${report.cohort.recommendedCohort.similarityScore}%`);
+    doc.text(`Response rate: ${report.cohort.recommendedCohort.responseRate}%`);
+
+    doc.moveDown();
+    doc.fontSize(16).text('Drug Interaction Intelligence');
+    if (report.drugIntel.interactions.length) {
+      report.drugIntel.interactions.slice(0, 3).forEach((item) => {
+        doc.fontSize(11).text(`- ${item.pair} [${item.severity}]`);
+        doc.text(`  ${item.action}`);
+      });
+    } else {
+      doc.fontSize(11).text('- No major interaction warnings detected.');
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error('Report Export Error:', error);
+    res.status(500).json({ error: 'Failed to generate clinician report.' });
   }
 });
 

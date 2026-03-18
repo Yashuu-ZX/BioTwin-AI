@@ -25,6 +25,13 @@ const PatientSchema = new mongoose.Schema({
     dosage: String,
     frequency: String
   }],
+  biomarkers: {
+    genomicVariant: String,
+    therapyTarget: String,
+    expressionLevel: String,
+    resistanceMarker: String,
+    immuneProfile: String
+  },
   lifestyle: {
     smoking: String,
     alcohol: String,
