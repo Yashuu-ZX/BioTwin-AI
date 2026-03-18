@@ -324,24 +324,31 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
             </h2>
            
            <div className="hidden md:flex flex-col gap-6 relative">
-             <div className="absolute left-[11px] top-6 bottom-6 w-0.5 bg-slate-700 z-0"></div>
-             {steps.map((step, idx) => {
-                const Icon = step.icon;
-                const active = currentStep === step.id;
-                const past = currentStep > step.id;
-                
-                return (
-                  <div key={step.id} className="relative z-10 flex items-center gap-4">
-                     <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${active ? (darkMode ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-lime-500 shadow-[0_0_12px_rgba(163,230,53,0.45)]') : past ? (darkMode ? 'bg-purple-500/50' : 'bg-lime-300') : (darkMode ? 'bg-slate-800 border-2 border-slate-700' : 'bg-[#f1eee7] border-2 border-black/10')}`}>
-                       {active && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                     </div>
-                     <span className={`text-sm font-medium transition-all ${active ? (darkMode ? 'text-white translate-x-1' : 'text-slate-900 translate-x-1') : past ? mutedTextClass : darkMode ? 'text-slate-600' : 'text-slate-400'}`}>
-                       {step.title}
-                     </span>
-                  </div>
-                )
-             })}
-           </div>
+              <div className="absolute left-[11px] top-6 bottom-6 w-0.5 bg-slate-700 z-0"></div>
+              {steps.map((step, idx) => {
+                 const Icon = step.icon;
+                 const active = currentStep === step.id;
+                 const past = currentStep > step.id;
+                 
+                 return (
+                   <div 
+                     key={step.id} 
+                     className="relative z-10 flex items-center gap-4 cursor-pointer group"
+                     onClick={() => setCurrentStep(step.id)}
+                     role="button"
+                     tabIndex={0}
+                     onKeyDown={(e) => e.key === 'Enter' && setCurrentStep(step.id)}
+                   >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 ${active ? (darkMode ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-lime-500 shadow-[0_0_12px_rgba(163,230,53,0.45)]') : past ? (darkMode ? 'bg-purple-500/50' : 'bg-lime-300') : (darkMode ? 'bg-slate-800 border-2 border-slate-700 group-hover:border-slate-500' : 'bg-[#f1eee7] border-2 border-black/10 group-hover:border-lime-300')}`}>
+                        {active && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span className={`text-sm font-medium transition-all group-hover:translate-x-1 ${active ? (darkMode ? 'text-white translate-x-1' : 'text-slate-900 translate-x-1') : past ? mutedTextClass : darkMode ? 'text-slate-600 group-hover:text-slate-400' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                        {step.title}
+                      </span>
+                   </div>
+                 )
+              })}
+            </div>
            
            {/* Mobile mini progress */}
            <div className="md:hidden flex justify-between items-center text-sm font-bold text-blue-400">

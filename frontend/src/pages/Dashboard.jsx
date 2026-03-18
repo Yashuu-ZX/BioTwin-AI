@@ -407,7 +407,10 @@ const Dashboard = ({ role = 'doctor' }) => {
   const fetchEhr = async () => {
     setLoadingEhr(true);
     try {
-      const response = await apiClient.get(`/external/ehr-data/${id}`, { headers: { 'x-api-key': 'HMS-SECURE-KEY-2026' } });
+      // API key should be configured on the backend or passed via environment variable
+      const apiKey = import.meta.env.VITE_HMS_API_KEY || '';
+      const headers = apiKey ? { 'x-api-key': apiKey } : {};
+      const response = await apiClient.get(`/external/ehr-data/${id}`, { headers });
       setEhrData(response.data.data);
     } catch (ehrError) {
       console.error(ehrError);

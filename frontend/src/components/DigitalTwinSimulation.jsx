@@ -6,6 +6,7 @@ import {
   Activity, Beaker, HeartPulse, ShieldAlert, Sparkles, TrendingUp, TrendingDown, Clock, 
   CheckCircle, AlertTriangle, XCircle, Info, Stethoscope, User, AlertOctagon 
 } from 'lucide-react';
+import apiClient from '../api/apiClient';
 
 const DigitalTwinSimulation = () => {
   const [patientId, setPatientId] = useState('P123'); // Default mock patient
@@ -20,17 +21,11 @@ const DigitalTwinSimulation = () => {
   const runSimulation = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/simulate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          patientId,
-          treatmentPlan
-        }),
+      const response = await apiClient.post('/simulate', {
+        patientId,
+        treatmentPlan
       });
-      const data = await response.json();
+      const data = response.data;
       
       // Simulate slightly longer processing for UX effect
       setTimeout(() => {
@@ -507,7 +502,7 @@ const DigitalTwinSimulation = () => {
 
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
+      <style>{`
         @keyframes fade-in {
           0% { opacity: 0; }
           100% { opacity: 1; }
@@ -518,7 +513,7 @@ const DigitalTwinSimulation = () => {
         }
         .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
         .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
-      `}} />
+      `}</style>
     </div>
   );
 };

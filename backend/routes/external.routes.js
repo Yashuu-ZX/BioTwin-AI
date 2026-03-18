@@ -4,12 +4,31 @@ const express = require('express');
 const router = express.Router();
 const mockDB = require('../data/mockDatabase');
 
+// HMS API Key from environment variable
+const getHMSApiKey = () => process.env.HMS_API_KEY;
+
 // Mock HMS (Hospital Management System) Auth Strategy
 const requireHMSAuth = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== 'HMS-SECURE-KEY-2026') {
-    return res.status(401).json({ error: "Unauthorized: Invalid or missing Hospital Management System credentials." });
+  const HMS_API_KEY = getHMSApiKey();
+  
+  // In production, API key is always required
+  if (process.env.NODE_ENV === 'production') {
+    if (!HMS_API_KEY) {
+      return res.status(500).json({ error: "Server configuration error: HMS_API_KEY not set" });
+    }
+    
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== HMS_API_KEY) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing Hospital Management System credentials." });
+    }
+  } else {
+    // In development, allow bypass only if explicitly configured to do so
+    const apiKey = req.headers['x-api-key'];
+    if (HMS_API_KEY && apiKey !== HMS_API_KEY) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing Hospital Management System credentials." });
+    }
   }
+  
   next();
 };
 

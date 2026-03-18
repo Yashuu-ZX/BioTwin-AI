@@ -12,17 +12,17 @@ const createDigitalTwin = (patient) => {
   const lifestyle = patient.lifestyle || { smoking: "No", alcohol: "No", exercise: "None" };
   const medicalHistory = patient.medicalHistory || { conditions: [] };
 
-  // Calculate baseline health index and risk level
-  const baseHealth = patient.metrics?.baselineHealthIndex || 70;
-  const baseRisk = patient.metrics?.riskScore || 0.3;
-
   // Feature vector generation: [cardiovascular_stress, metabolic_stress, respiratory_stress]
   let cvStress = ((vitals.bpSystolic - 120) / 120) + ((vitals.heartRate - 80) / 80);
   let metStress = ((vitals.sugar - 100) / 100);
   let respStress = ((98 - vitals.spO2) / 100);
 
-  if (lifestyle.smoking === "Yes") respStress += 0.2;
-  if (lifestyle.exercise === "None") cvStress += 0.1;
+  if (lifestyle.smoking === "Yes") respStress += 0.25;
+  else if (lifestyle.smoking === "Past") respStress += 0.1;
+  
+  if (lifestyle.exercise === "None") cvStress += 0.15;
+  else if (lifestyle.exercise === "Rarely") cvStress += 0.08;
+  else if (lifestyle.exercise === "Active") cvStress -= 0.1;
 
   const featureVector = [
     Math.max(0, Math.min(1, cvStress)),
@@ -30,9 +30,48 @@ const createDigitalTwin = (patient) => {
     Math.max(0, Math.min(1, respStress))
   ];
 
+  // Calculate dynamic health index and risk score from vitals and lifestyle
+  const baseHealth = patient.metrics?.baselineHealthIndex || 70;
+  const baseRisk = patient.metrics?.riskScore || 0.3;
+  
+  // Adjust health index based on vitals (higher stress = lower health)
+  const totalStress = (featureVector[0] + featureVector[1] + featureVector[2]) / 3;
+  const dynamicHealthIndex = Math.max(10, Math.min(95, baseHealth - (totalStress * 40)));
+  
+  // Adjust risk score based on vitals and lifestyle
+  let dynamicRiskScore = baseRisk;
+  
+  // Blood pressure impact
+  if (vitals.bpSystolic > 140) dynamicRiskScore += 0.15;
+  else if (vitals.bpSystolic > 130) dynamicRiskScore += 0.08;
+  else if (vitals.bpSystolic < 110) dynamicRiskScore -= 0.05;
+  
+  // Blood sugar impact
+  if (vitals.sugar > 180) dynamicRiskScore += 0.15;
+  else if (vitals.sugar > 140) dynamicRiskScore += 0.1;
+  else if (vitals.sugar < 110) dynamicRiskScore -= 0.05;
+  
+  // SpO2 impact
+  if (vitals.spO2 < 92) dynamicRiskScore += 0.15;
+  else if (vitals.spO2 < 95) dynamicRiskScore += 0.08;
+  else if (vitals.spO2 >= 98) dynamicRiskScore -= 0.03;
+  
+  // Lifestyle impact
+  if (lifestyle.smoking === "Yes") dynamicRiskScore += 0.12;
+  else if (lifestyle.smoking === "Past") dynamicRiskScore += 0.05;
+  else if (lifestyle.smoking === "No") dynamicRiskScore -= 0.03;
+  
+  if (lifestyle.exercise === "None") dynamicRiskScore += 0.1;
+  else if (lifestyle.exercise === "Rarely") dynamicRiskScore += 0.05;
+  else if (lifestyle.exercise === "Active") dynamicRiskScore -= 0.08;
+  else if (lifestyle.exercise === "Moderate") dynamicRiskScore -= 0.03;
+  
+  // Clamp risk score between 0.05 and 0.95
+  dynamicRiskScore = Math.max(0.05, Math.min(0.95, dynamicRiskScore));
+
   let riskLevel = "Low";
-  if (baseRisk > 0.6) riskLevel = "High";
-  else if (baseRisk > 0.3) riskLevel = "Medium";
+  if (dynamicRiskScore > 0.6) riskLevel = "High";
+  else if (dynamicRiskScore > 0.3) riskLevel = "Medium";
 
   let diseaseState = patient.disease || "Unknown";
   if (diseaseState === "Unknown" && medicalHistory.conditions.length > 0) {
@@ -50,9 +89,9 @@ const createDigitalTwin = (patient) => {
 
   return {
     patientId: patient.patientId || patient.id,
-    healthIndex: baseHealth,
+    healthIndex: dynamicHealthIndex,
     riskLevel,
-    riskScore: baseRisk,
+    riskScore: dynamicRiskScore,
     diseaseState,
     featureVector,
     contributingFactors
@@ -128,6 +167,10 @@ const evaluateTreatment = (twin, treatmentPlan) => {
     }
   } catch (err) {
     // Failsafe: Continue with raw baseline physics if learning memory is inaccessible
+    // Log the error in non-production environments for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[DigitalTwin] Learning service unavailable, using baseline calculations:', err.message);
+    }
   }
   // ==========================================
 

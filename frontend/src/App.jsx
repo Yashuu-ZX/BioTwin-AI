@@ -136,10 +136,18 @@ function Home({ role, onLogout, darkMode }) {
             <div className={`p-8 md:p-10 ${darkMode ? 'border-l border-slate-800/70 bg-slate-950/50' : 'border-l border-black/5 bg-white/35'}`}>
               <p className={`text-sm font-semibold uppercase tracking-[0.2em] ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>System Layers</p>
               <div className="mt-6 space-y-4">
-                {['Patient Intake', 'Digital Twin Engine', 'Clinical Dashboard', 'Learning Loop', 'Secure Integration', 'Explainable AI'].map((item, index) => (
-                  <div key={item} className={`rounded-2xl border p-4 ${darkMode ? 'border-slate-800 bg-slate-900/80' : 'border-black/5 bg-white/80'}`}>
+                {[
+                  { name: 'Patient Intake', description: 'Collect and structure patient medical history, demographics, and clinical data into a comprehensive health profile.' },
+                  { name: 'Digital Twin Engine', description: 'Create a virtual replica of the patient to simulate disease progression and compare treatment outcomes.' },
+                  { name: 'Clinical Dashboard', description: 'Visualize patient metrics, risk scores, treatment recommendations, and simulation history in real-time.' },
+                  { name: 'Learning Loop', description: 'Continuously improve predictions by feeding real-world outcomes back into the AI model.' },
+                  { name: 'Secure Integration', description: 'Connect with EHR systems and wearable devices through encrypted, HIPAA-compliant API endpoints.' },
+                  { name: 'Explainable AI', description: 'Provide transparent insights into AI decisions with feature importance and what-if scenario analysis.' },
+                ].map((layer, index) => (
+                  <div key={layer.name} className={`group rounded-2xl border p-4 transition-all duration-200 hover:shadow-md ${darkMode ? 'border-slate-800 bg-slate-900/80 hover:border-cyan-500/30' : 'border-black/5 bg-white/80 hover:border-lime-300'}`}>
                     <p className={`text-xs uppercase tracking-[0.2em] ${darkMode ? 'text-cyan-400' : 'text-lime-700'}`}>Layer {index + 1}</p>
-                    <p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{item}</p>
+                    <p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{layer.name}</p>
+                    <p className={`mt-2 text-sm leading-relaxed max-h-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-h-24 group-hover:opacity-100 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{layer.description}</p>
                   </div>
                 ))}
               </div>

@@ -162,7 +162,6 @@ const generateCohortMatches = async (patientId, treatmentPlan = { type: 'Standar
     Oncology: ['Targeted responders', 'Immunotherapy bridge', 'Resistance surveillance'],
     Cardiac: ['High-risk intervention', 'Hemodynamic stabilization', 'Secondary prevention'],
     Metabolic: ['Insulin-sensitization', 'Lifestyle-responsive', 'Multi-morbidity control'],
-    Cardiac: ['High-risk intervention', 'Hemodynamic stabilization', 'Secondary prevention'],
     Respiratory: ['Inflammatory airway control', 'Oxygen recovery', 'Smoking-reversal'],
   };
 

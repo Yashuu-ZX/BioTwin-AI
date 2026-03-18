@@ -1,15 +1,15 @@
 {
-  "modelAccuracy": 94.32,
-  "learningStatus": "Stable",
-  "totalFeedbackProcessed": 25,
+  "modelAccuracy": 94.77,
+  "learningStatus": "Improving",
+  "totalFeedbackProcessed": 29,
   "protocolAdjustments": {
     "Conservative": {
       "effectivenessMod": 1,
-      "riskMod": 1
+      "riskMod": 0.98
     },
     "Standard": {
       "effectivenessMod": 1,
-      "riskMod": 0.8199999999999998
+      "riskMod": 0.7799999999999998
     },
     "Aggressive": {
       "effectivenessMod": 1,
@@ -191,6 +191,34 @@
       "timestamp": "2026-03-18T03:24:14.849Z",
       "predictionAccuracy": 93.5,
       "errorMargin": 6.5
+    },
+    {
+      "patientId": "1edf0dbf24ae9e62816c3a05c651df89",
+      "treatmentUsed": "Standard",
+      "timestamp": "2026-03-18T03:43:03.895Z",
+      "predictionAccuracy": 93.75,
+      "errorMargin": 6.25
+    },
+    {
+      "patientId": "4fa98b23f5a2405330e2c8f9224badf9",
+      "treatmentUsed": "Conservative",
+      "timestamp": "2026-03-18T04:45:09.538Z",
+      "predictionAccuracy": 90,
+      "errorMargin": 10
+    },
+    {
+      "patientId": "4fa98b23f5a2405330e2c8f9224badf9",
+      "treatmentUsed": "Standard",
+      "timestamp": "2026-03-18T04:46:09.023Z",
+      "predictionAccuracy": 94,
+      "errorMargin": 6
+    },
+    {
+      "patientId": "101c4eb309b9925dde5a2e046c7ca2d3",
+      "treatmentUsed": "Aggressive",
+      "timestamp": "2026-03-18T08:19:58.368Z",
+      "predictionAccuracy": 99.85,
+      "errorMargin": 0.15
     }
   ]
 }
