@@ -87,14 +87,30 @@ function Home({ role, onLogout, darkMode }) {
   ];
 
   const [demoCases, setDemoCases] = React.useState([]);
+  const [launchError, setLaunchError] = React.useState('');
+  const [isLaunching, setIsLaunching] = React.useState(false);
 
   React.useEffect(() => {
-    apiClient.get('/patient/demo-cases').then((response) => setDemoCases(response.data)).catch(() => setDemoCases([]));
+    apiClient.get('/patient/demo-cases')
+      .then((response) => setDemoCases(response.data))
+      .catch((err) => {
+        console.error('Failed to load demo cases:', err);
+        setDemoCases([]);
+      });
   }, []);
 
   const launchDemoCase = async (slug) => {
-    const response = await apiClient.post(`/patient/demo-seed/${slug}`);
-    navigate(`/dashboard/${response.data.patientId}`);
+    setLaunchError('');
+    setIsLaunching(true);
+    try {
+      const response = await apiClient.post(`/patient/demo-seed/${slug}`);
+      navigate(`/dashboard/${response.data.patientId}`);
+    } catch (err) {
+      console.error('Failed to launch demo case:', err);
+      setLaunchError(err.response?.data?.error || 'Failed to launch demo case. Please try again.');
+    } finally {
+      setIsLaunching(false);
+    }
   };
 
   return (
@@ -181,12 +197,24 @@ function Home({ role, onLogout, darkMode }) {
               <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Launch seeded domain cases instantly for demos, judging, or stakeholder walkthroughs.</p>
             </div>
           </div>
+          {launchError && (
+            <div className={`mb-4 rounded-xl border p-3 text-sm ${darkMode ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+              {launchError}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {demoCases.map((demo) => (
-              <button key={demo.slug} onClick={() => launchDemoCase(demo.slug)} className={`rounded-3xl border p-5 text-left transition hover:-translate-y-1 ${darkMode ? 'border-slate-800 bg-slate-950/70 hover:border-violet-500/30 hover:bg-slate-900' : 'border-black/5 bg-[#f8f6f0] hover:border-violet-300 hover:bg-white'}`}>
+              <button 
+                key={demo.slug} 
+                onClick={() => launchDemoCase(demo.slug)} 
+                disabled={isLaunching}
+                className={`rounded-3xl border p-5 text-left transition hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${darkMode ? 'border-slate-800 bg-slate-950/70 hover:border-violet-500/30 hover:bg-slate-900' : 'border-black/5 bg-[#f8f6f0] hover:border-violet-300 hover:bg-white'}`}
+              >
                 <p className={`text-xs uppercase tracking-[0.2em] ${darkMode ? 'text-violet-300' : 'text-violet-700'}`}>{demo.disease}</p>
                 <p className={`mt-2 text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{demo.title}</p>
-                <p className={`mt-3 inline-flex items-center gap-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Launch case <ArrowRight className="h-4 w-4" /></p>
+                <p className={`mt-3 inline-flex items-center gap-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {isLaunching ? 'Launching...' : 'Launch case'} <ArrowRight className="h-4 w-4" />
+                </p>
               </button>
             ))}
           </div>

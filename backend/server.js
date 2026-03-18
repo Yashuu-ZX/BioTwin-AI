@@ -6,10 +6,10 @@ const connectDB = require('./config/db');
 // Load environment variables
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
+
+// Database connection status (will be set after async connection)
+let dbConnected = false;
 
 // Middleware
 const helmet = require('helmet');
@@ -103,12 +103,18 @@ const simulationRoutes = require('./routes/simulation.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
 const externalRoutes = require('./routes/external.routes');
 const explainRoutes = require('./routes/explain.routes');
+const pharmacologyRoutes = require('./routes/pharmacology.routes');
+const alertsRoutes = require('./routes/alerts.routes');
+const trialsRoutes = require('./routes/trials.routes');
 
 app.use('/api/patient', patientRoutes);
 app.use('/api', simulationRoutes); // /api/simulate and /api/predict
 app.use('/api/learning', feedbackRoutes); // Layer 4 API
 app.use('/api/external', externalRoutes); // Layer 5 API
 app.use('/api/explain', explainRoutes); // Layer 6 Advanced Intelligence & XAI
+app.use('/api/pharmacology', pharmacologyRoutes); // Drug interactions & PK/PD modeling
+app.use('/api/alerts', alertsRoutes); // Clinical alerts & deterioration monitoring
+app.use('/api/trials', trialsRoutes); // Clinical trial matching
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -172,14 +178,34 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.error('Unhandled Rejection', { reason: String(reason) });
 });
 
-// Start Server
+// Start Server with proper async initialization
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  logger.info(`BioTwin API Server started`, { port: PORT, env: process.env.NODE_ENV || 'development' });
-});
 
-module.exports = { app, server };
+const startServer = async () => {
+  try {
+    // Await database connection before starting the server
+    dbConnected = await connectDB();
+    logger.info('Database initialization complete', { connected: dbConnected });
+  } catch (err) {
+    logger.warn('Database connection failed, continuing with in-memory store', { error: err.message });
+  }
+  
+  const server = app.listen(PORT, () => {
+    logger.info(`BioTwin API Server started`, { 
+      port: PORT, 
+      env: process.env.NODE_ENV || 'development',
+      database: dbConnected ? 'MongoDB' : 'In-Memory MockDB'
+    });
+  });
+  
+  return server;
+};
+
+// Initialize server
+const serverPromise = startServer();
+
+module.exports = { app, serverPromise };

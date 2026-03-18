@@ -14,6 +14,10 @@ const getPatientRecord = async (patientId) => {
       patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
     }
   } catch (error) {
+    // Log the error for debugging but continue to fallback
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('MongoDB query error, falling back to mockDB:', error.message);
+    }
     patient = null;
   }
 
@@ -41,8 +45,11 @@ router.post('/simulate', async (req, res) => {
     return res.status(404).json({ error: "Patient not found" });
   }
 
-  // Simulate delay to make it feel like AI processing
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  // Configurable delay to make it feel like AI processing (skip in production/test)
+  const delay = process.env.NODE_ENV === 'production' ? 0 : 1500;
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
 
   const simulationResult = digitalTwinService.runFullSimulation(patient, sanitizedTreatmentPlan);
   mockDB.addSimulation(patientId, {
@@ -94,10 +101,19 @@ router.post('/predict', async (req, res) => {
     patientData.age = age;
   }
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Configurable delay (skip in test/production for faster response)
+  const delay = process.env.NODE_ENV === 'production' ? 0 : 1000;
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
   
   // Predict health trajectory without specific treatment
-  const riskScore = Math.min(99, Math.max(5, (patientData.age - 30) * 0.5 + Math.random() * 20));
+  // Use deterministic calculation based on patient data instead of random
+  const ageValue = patientData.age || 45;
+  const conditionsCount = Array.isArray(patientData.conditions) ? patientData.conditions.length : 0;
+  const bmiPenalty = patientData.bmi > 30 ? 10 : patientData.bmi > 25 ? 5 : 0;
+  const baseRisk = (ageValue - 30) * 0.5 + conditionsCount * 5 + bmiPenalty;
+  const riskScore = Math.min(99, Math.max(5, baseRisk));
 
   res.json({
     baseRiskScore: riskScore.toFixed(2),

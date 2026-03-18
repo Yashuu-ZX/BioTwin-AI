@@ -144,7 +144,8 @@ const processIntake = (data) => {
   if (vitals.spO2 < 96 || lifestyle.smoking === "Yes") respiratory += 0.4;
   if (vitals.sugar > 120 || bmi > 28) metabolic += 0.5;
   
-  const sum = cardiac + respiratory + metabolic;
+  // Prevent division by zero - ensure sum is at least a small positive number
+  const sum = cardiac + respiratory + metabolic || 0.3;
   const diseaseProbability = {
     cardiac: parseFloat((cardiac / sum).toFixed(2)),
     respiratory: parseFloat((respiratory / sum).toFixed(2)),

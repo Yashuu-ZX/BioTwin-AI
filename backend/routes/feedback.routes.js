@@ -30,17 +30,27 @@ router.post('/feedback', (req, res) => {
 router.get('/status', (req, res) => {
   try {
     const state = learningService.getLearningState();
+    const historyArray = Array.isArray(state.history) ? state.history : [];
+    
     res.json({
       modelAccuracy: state.modelAccuracy,
       learningStatus: state.learningStatus,
       totalFeedbackProcessed: state.totalFeedbackProcessed,
-      history: state.history,
-      latestInsights: state.history.slice(-3).map(h => ({
-        trend: h.predictionAccuracy > 80 ? "High Calibration" : "Adjusting Weights",
-        event: `Outcome logged for ${h.treatmentUsed} (${h.patientId.slice(0, 8)})`
-      }))
+      history: historyArray,
+      latestInsights: historyArray.slice(-3).map(h => {
+        // Safely access patientId with null check
+        const patientIdDisplay = h && h.patientId ? h.patientId.slice(0, 8) : 'unknown';
+        const treatmentName = h && h.treatmentUsed ? h.treatmentUsed : 'unknown';
+        const accuracy = h && typeof h.predictionAccuracy === 'number' ? h.predictionAccuracy : 0;
+        
+        return {
+          trend: accuracy > 80 ? "High Calibration" : "Adjusting Weights",
+          event: `Outcome logged for ${treatmentName} (${patientIdDisplay})`
+        };
+      })
     });
   } catch (err) {
+    console.error('Learning status error:', err);
     res.status(500).json({ error: "Failed to fetch learning status." });
   }
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../api/apiClient';
 import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot, CheckCircle2, AlertTriangle, BrainCircuit, Sparkles } from 'lucide-react';
@@ -35,8 +35,27 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
       therapyTarget: 'Broad Standard of Care',
       expressionLevel: 'Unknown',
       resistanceMarker: 'None reported',
-      immuneProfile: 'Baseline'
+      immuneProfile: 'Baseline',
+      // Structured genomics for clinical trial matching
+      genomics: {
+        variants: [], // Array of { gene, mutation, significance }
+        tumorMutationBurden: '',
+        microsatelliteStatus: 'Unknown', // MSS, MSI-L, MSI-H
+        pdL1Expression: '',
+        herStatus: 'Unknown', // Positive, Negative, Equivocal, Unknown
+        hormoneReceptors: { er: 'Unknown', pr: 'Unknown' }
+      },
+      // Pharmacogenomics for drug dosing
+      pharmacogenomics: {
+        cyp2d6: 'Unknown',
+        cyp2c19: 'Unknown',
+        cyp2c9: 'Unknown',
+        vkorc1: 'Unknown',
+        tpmt: 'Unknown'
+      }
     },
+    // Allergies for safety checking
+    allergies: [], // Array of { allergen, reaction, severity }
     lifestyle: { smoking: 'No', alcohol: 'No', exercise: 'None', diet: 'Average' },
     vitals: { heartRate: 80, bpSystolic: 120, bpDiastolic: 80, sugar: 100, spO2: 98, temperature: 98.6 },
     disease: 'Unknown',
@@ -49,7 +68,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
     [parent]: { ...prev[parent], [key]: value }
   }));
 
-  const autoFill = () => {
+  const autoFill = useCallback(() => {
     setFormData({
       name: 'Robert Miller', age: 62, gender: 'Male', height: 175, weight: 88, bloodGroup: 'O+',
       symptoms: ['Chest Pain', 'Shortness of Breath'], symptomSeverity: 8, symptomDuration: 3,
@@ -60,8 +79,24 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
         therapyTarget: 'Cardio-metabolic risk modulation',
         expressionLevel: 'Elevated inflammatory burden',
         resistanceMarker: 'Statin-associated intolerance risk',
-        immuneProfile: 'Chronic low-grade inflammation'
+        immuneProfile: 'Chronic low-grade inflammation',
+        genomics: {
+          variants: [{ gene: 'CYP2C19', mutation: '*2/*2', significance: 'Poor metabolizer' }],
+          tumorMutationBurden: '',
+          microsatelliteStatus: 'Unknown',
+          pdL1Expression: '',
+          herStatus: 'Unknown',
+          hormoneReceptors: { er: 'Unknown', pr: 'Unknown' }
+        },
+        pharmacogenomics: {
+          cyp2d6: 'Normal',
+          cyp2c19: 'Poor Metabolizer',
+          cyp2c9: 'Normal',
+          vkorc1: 'Normal',
+          tpmt: 'Normal'
+        }
       },
+      allergies: [{ allergen: 'Penicillin', reaction: 'Rash', severity: 'Moderate' }],
       lifestyle: { smoking: 'Past', alcohol: 'Occasionally', exercise: 'Rarely', diet: 'Poor' },
       vitals: { heartRate: 88, bpSystolic: 145, bpDiastolic: 92, sugar: 142, spO2: 95, temperature: 98.4 },
       disease: 'Cardiac',
@@ -69,13 +104,13 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
     });
     setCurrentStep(9);
     setSubmitStatus({ type: 'info', message: 'Demo patient loaded. Review the profile and generate the twin model.' });
-  };
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('demo') === '1' && role !== 'patient') {
       autoFill();
     }
-  }, [searchParams, role]);
+  }, [searchParams, role, autoFill]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -175,7 +210,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
           </div>
           <div>
             <label className={`${labelClass} block mb-2 flex justify-between`}><span>Symptom Severity (1-10)</span> <span className={darkMode ? 'text-white font-bold' : 'text-slate-900 font-bold'}>{formData.symptomSeverity}</span></label>
-            <input type="range" min="1" max="10" value={formData.symptomSeverity} onChange={e => updateForm('symptomSeverity', parseInt(e.target.value))} className="w-full accent-blue-500" />
+            <input type="range" min="1" max="10" value={formData.symptomSeverity} onChange={e => updateForm('symptomSeverity', parseInt(e.target.value, 10) || 5)} className="w-full accent-blue-500" />
           </div>
           <div><label className={labelClass}>Duration (Days)</label><input type="number" value={formData.symptomDuration} onChange={e => updateForm('symptomDuration', e.target.value)} className={`${inputClass} mt-1`} placeholder="e.g. 5" /></div>
         </div>
@@ -199,13 +234,13 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
            {formData.medications.map((med, idx) => (
              <div key={idx} className={`grid grid-cols-12 gap-2 pb-4 border-b ${darkMode ? 'border-slate-700/50' : 'border-black/5'}`}>
                 <div className="col-span-12 md:col-span-5"><label className="text-xs text-slate-500">Drug Name</label><input type="text" value={med.name} onChange={e => {
-                   const newMeds = [...formData.medications]; newMeds[idx].name = e.target.value; updateForm('medications', newMeds);
+                   const newMeds = formData.medications.map((m, i) => i === idx ? { ...m, name: e.target.value } : m); updateForm('medications', newMeds);
                 }} className={inputClass} placeholder="Drug Name" /></div>
                 <div className="col-span-6 md:col-span-3"><label className="text-xs text-slate-500">Dosage</label><input type="text" value={med.dosage} onChange={e => {
-                   const newMeds = [...formData.medications]; newMeds[idx].dosage = e.target.value; updateForm('medications', newMeds);
+                   const newMeds = formData.medications.map((m, i) => i === idx ? { ...m, dosage: e.target.value } : m); updateForm('medications', newMeds);
                 }} className={inputClass} placeholder="20mg" /></div>
                 <div className="col-span-6 md:col-span-4"><label className="text-xs text-slate-500">Frequency</label><input type="text" value={med.frequency} onChange={e => {
-                   const newMeds = [...formData.medications]; newMeds[idx].frequency = e.target.value; updateForm('medications', newMeds);
+                   const newMeds = formData.medications.map((m, i) => i === idx ? { ...m, frequency: e.target.value } : m); updateForm('medications', newMeds);
                 }} className={inputClass} placeholder="Once daily" /></div>
               </div>
             ))}
@@ -225,33 +260,89 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
       case 6: return (
         <div className="space-y-4 animate-fadeIn">
            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <div><label className={labelClass}>Heart Rate (bpm)</label><input type="number" value={formData.vitals.heartRate} onChange={e => updateNested('vitals', 'heartRate', parseInt(e.target.value))} className={inputClass} /></div>
-            <div><label className={labelClass}>BP Systolic</label><input type="number" value={formData.vitals.bpSystolic} onChange={e => updateNested('vitals', 'bpSystolic', parseInt(e.target.value))} className={inputClass} /></div>
-            <div><label className={labelClass}>BP Diastolic</label><input type="number" value={formData.vitals.bpDiastolic} onChange={e => updateNested('vitals', 'bpDiastolic', parseInt(e.target.value))} className={inputClass} /></div>
-            <div><label className={labelClass}>Fasting Sugar (mg/dL)</label><input type="number" value={formData.vitals.sugar} onChange={e => updateNested('vitals', 'sugar', parseInt(e.target.value))} className={inputClass} /></div>
-            <div><label className={labelClass}>SpO2 (%)</label><input type="number" value={formData.vitals.spO2} onChange={e => updateNested('vitals', 'spO2', parseInt(e.target.value))} className={inputClass} /></div>
-            <div><label className={labelClass}>Body Temp (°F)</label><input type="number" value={formData.vitals.temperature} onChange={e => updateNested('vitals', 'temperature', parseFloat(e.target.value))} className={inputClass} /></div>
+            <div><label className={labelClass}>Heart Rate (bpm)</label><input type="number" value={formData.vitals.heartRate} onChange={e => updateNested('vitals', 'heartRate', parseInt(e.target.value, 10) || 0)} className={inputClass} /></div>
+            <div><label className={labelClass}>BP Systolic</label><input type="number" value={formData.vitals.bpSystolic} onChange={e => updateNested('vitals', 'bpSystolic', parseInt(e.target.value, 10) || 0)} className={inputClass} /></div>
+            <div><label className={labelClass}>BP Diastolic</label><input type="number" value={formData.vitals.bpDiastolic} onChange={e => updateNested('vitals', 'bpDiastolic', parseInt(e.target.value, 10) || 0)} className={inputClass} /></div>
+            <div><label className={labelClass}>Fasting Sugar (mg/dL)</label><input type="number" value={formData.vitals.sugar} onChange={e => updateNested('vitals', 'sugar', parseInt(e.target.value, 10) || 0)} className={inputClass} /></div>
+            <div><label className={labelClass}>SpO2 (%)</label><input type="number" value={formData.vitals.spO2} onChange={e => updateNested('vitals', 'spO2', parseInt(e.target.value, 10) || 0)} className={inputClass} /></div>
+            <div><label className={labelClass}>Body Temp (°F)</label><input type="number" value={formData.vitals.temperature} onChange={e => updateNested('vitals', 'temperature', parseFloat(e.target.value) || 0)} className={inputClass} /></div>
            </div>
         </div>
       );
       case 7: return (
         <div className="space-y-4 animate-fadeIn">
           <div className={`rounded-2xl border p-4 text-sm ${darkMode ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-100' : 'border-lime-200 bg-lime-50 text-lime-700'}`}>
-            Capture high-value biomarker context to make the twin more useful for specialized and biotech-driven treatment selection.
+            Capture high-value biomarker context to make the twin more useful for specialized treatment selection and clinical trial matching.
           </div>
+          
+          {/* Lab Panel Parser */}
           <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
             <label className={`text-sm flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}><Microscope size={16} className={darkMode ? 'text-cyan-300' : 'text-lime-600'} /> Mock Lab Panel Parser</label>
-            <textarea value={labPanelText} onChange={e => setLabPanelText(e.target.value)} className={`${inputClass} h-28`} placeholder="Paste text like: Glucose 144, BP 145/92, SpO2 95, Variant EGFR exon 19, Target EGFR pathway, Resistance none, Immune inflamed" />
+            <textarea value={labPanelText} onChange={e => setLabPanelText(e.target.value)} className={`${inputClass} h-20`} placeholder="Paste text like: Glucose 144, BP 145/92, SpO2 95, Variant EGFR exon 19" />
             <button type="button" onClick={parseLabPanel} disabled={parsingLab || !labPanelText.trim()} className={`rounded-xl px-4 py-2 text-sm font-semibold disabled:bg-slate-700 disabled:text-slate-400 ${darkMode ? 'bg-cyan-500 text-slate-950' : 'bg-lime-500 text-slate-900'}`}>
               {parsingLab ? 'Parsing...' : 'Parse Lab Panel'}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className={labelClass}>Genomic Variant</label><input type="text" value={formData.biomarkers.genomicVariant} onChange={e => updateNested('biomarkers', 'genomicVariant', e.target.value)} className={inputClass} placeholder="e.g. EGFR exon 19, CYP2C19 reduced metabolizer" /></div>
-            <div><label className={labelClass}>Therapy Target</label><input type="text" value={formData.biomarkers.therapyTarget} onChange={e => updateNested('biomarkers', 'therapyTarget', e.target.value)} className={inputClass} placeholder="e.g. HER2, inflammatory axis" /></div>
-            <div><label className={labelClass}>Expression Level</label><input type="text" value={formData.biomarkers.expressionLevel} onChange={e => updateNested('biomarkers', 'expressionLevel', e.target.value)} className={inputClass} placeholder="High / Medium / Low / Unknown" /></div>
-            <div><label className={labelClass}>Resistance Marker</label><input type="text" value={formData.biomarkers.resistanceMarker} onChange={e => updateNested('biomarkers', 'resistanceMarker', e.target.value)} className={inputClass} placeholder="e.g. KRAS, prior treatment resistance" /></div>
-            <div className="md:col-span-2"><label className={labelClass}>Immune / Inflammatory Profile</label><input type="text" value={formData.biomarkers.immuneProfile} onChange={e => updateNested('biomarkers', 'immuneProfile', e.target.value)} className={inputClass} placeholder="e.g. immune-cold, inflamed, chronic low-grade inflammation" /></div>
+
+          {/* Legacy Biomarkers */}
+          <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
+            <label className={`text-sm font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>General Biomarkers</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><label className={labelClass}>Genomic Variant (Free Text)</label><input type="text" value={formData.biomarkers.genomicVariant} onChange={e => updateNested('biomarkers', 'genomicVariant', e.target.value)} className={inputClass} placeholder="e.g. EGFR exon 19, CYP2C19" /></div>
+              <div><label className={labelClass}>Therapy Target</label><input type="text" value={formData.biomarkers.therapyTarget} onChange={e => updateNested('biomarkers', 'therapyTarget', e.target.value)} className={inputClass} placeholder="e.g. HER2, inflammatory axis" /></div>
+              <div><label className={labelClass}>Expression Level</label><select value={formData.biomarkers.expressionLevel} onChange={e => updateNested('biomarkers', 'expressionLevel', e.target.value)} className={inputClass}><option>Unknown</option><option>High</option><option>Medium</option><option>Low</option><option>Elevated inflammatory burden</option></select></div>
+              <div><label className={labelClass}>Immune Profile</label><select value={formData.biomarkers.immuneProfile} onChange={e => updateNested('biomarkers', 'immuneProfile', e.target.value)} className={inputClass}><option>Baseline</option><option>Immune-cold</option><option>Inflamed</option><option>Chronic low-grade inflammation</option></select></div>
+            </div>
+          </div>
+
+          {/* Structured Genomics for Clinical Trials */}
+          <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
+            <label className={`text-sm font-semibold flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}><Dna size={16} className={darkMode ? 'text-purple-400' : 'text-purple-600'} /> Structured Genomics (for Trial Matching)</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div><label className={labelClass}>MSI Status</label><select value={formData.biomarkers.genomics?.microsatelliteStatus || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, microsatelliteStatus: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>MSS</option><option>MSI-L</option><option>MSI-H</option></select></div>
+              <div><label className={labelClass}>HER2 Status</label><select value={formData.biomarkers.genomics?.herStatus || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, herStatus: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Positive</option><option>Negative</option><option>Equivocal</option></select></div>
+              <div><label className={labelClass}>PD-L1 Expression (%)</label><input type="text" value={formData.biomarkers.genomics?.pdL1Expression || ''} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, pdL1Expression: e.target.value }}}))} className={inputClass} placeholder="e.g. 50%" /></div>
+              <div><label className={labelClass}>TMB (mut/Mb)</label><input type="text" value={formData.biomarkers.genomics?.tumorMutationBurden || ''} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, tumorMutationBurden: e.target.value }}}))} className={inputClass} placeholder="e.g. 12" /></div>
+              <div><label className={labelClass}>ER Status</label><select value={formData.biomarkers.genomics?.hormoneReceptors?.er || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, hormoneReceptors: { ...prev.biomarkers.genomics?.hormoneReceptors, er: e.target.value }}}}))} className={inputClass}><option>Unknown</option><option>Positive</option><option>Negative</option></select></div>
+              <div><label className={labelClass}>PR Status</label><select value={formData.biomarkers.genomics?.hormoneReceptors?.pr || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, hormoneReceptors: { ...prev.biomarkers.genomics?.hormoneReceptors, pr: e.target.value }}}}))} className={inputClass}><option>Unknown</option><option>Positive</option><option>Negative</option></select></div>
+            </div>
+            {/* Genomic Variants List */}
+            <div className="mt-3">
+              <label className={labelClass}>Known Genomic Variants</label>
+              {(formData.biomarkers.genomics?.variants || []).map((variant, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 mt-2">
+                  <div className="col-span-4"><input type="text" value={variant.gene} onChange={e => { const newVariants = formData.biomarkers.genomics.variants.map((v, i) => i === idx ? { ...v, gene: e.target.value } : v); setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, variants: newVariants }}})); }} className={inputClass} placeholder="Gene (e.g. EGFR)" /></div>
+                  <div className="col-span-4"><input type="text" value={variant.mutation} onChange={e => { const newVariants = formData.biomarkers.genomics.variants.map((v, i) => i === idx ? { ...v, mutation: e.target.value } : v); setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, variants: newVariants }}})); }} className={inputClass} placeholder="Mutation (e.g. L858R)" /></div>
+                  <div className="col-span-4"><input type="text" value={variant.significance} onChange={e => { const newVariants = formData.biomarkers.genomics.variants.map((v, i) => i === idx ? { ...v, significance: e.target.value } : v); setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, variants: newVariants }}})); }} className={inputClass} placeholder="Significance" /></div>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, genomics: { ...prev.biomarkers.genomics, variants: [...(prev.biomarkers.genomics?.variants || []), { gene: '', mutation: '', significance: '' }] }}}))} className={`text-sm font-semibold mt-2 ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-700 hover:text-purple-800'}`}>+ Add Variant</button>
+            </div>
+          </div>
+
+          {/* Pharmacogenomics */}
+          <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
+            <label className={`text-sm font-semibold flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}><Pill size={16} className={darkMode ? 'text-blue-400' : 'text-blue-600'} /> Pharmacogenomics (Drug Metabolism)</label>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div><label className={labelClass}>CYP2D6</label><select value={formData.biomarkers.pharmacogenomics?.cyp2d6 || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, pharmacogenomics: { ...prev.biomarkers.pharmacogenomics, cyp2d6: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Poor Metabolizer</option><option>Intermediate</option><option>Normal</option><option>Ultrarapid</option></select></div>
+              <div><label className={labelClass}>CYP2C19</label><select value={formData.biomarkers.pharmacogenomics?.cyp2c19 || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, pharmacogenomics: { ...prev.biomarkers.pharmacogenomics, cyp2c19: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Poor Metabolizer</option><option>Intermediate</option><option>Normal</option><option>Ultrarapid</option></select></div>
+              <div><label className={labelClass}>CYP2C9</label><select value={formData.biomarkers.pharmacogenomics?.cyp2c9 || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, pharmacogenomics: { ...prev.biomarkers.pharmacogenomics, cyp2c9: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Poor Metabolizer</option><option>Intermediate</option><option>Normal</option></select></div>
+              <div><label className={labelClass}>VKORC1</label><select value={formData.biomarkers.pharmacogenomics?.vkorc1 || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, pharmacogenomics: { ...prev.biomarkers.pharmacogenomics, vkorc1: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Normal</option><option>Low Dose Required</option><option>Very Low Dose</option></select></div>
+              <div><label className={labelClass}>TPMT</label><select value={formData.biomarkers.pharmacogenomics?.tpmt || 'Unknown'} onChange={e => setFormData(prev => ({ ...prev, biomarkers: { ...prev.biomarkers, pharmacogenomics: { ...prev.biomarkers.pharmacogenomics, tpmt: e.target.value }}}))} className={inputClass}><option>Unknown</option><option>Poor Metabolizer</option><option>Intermediate</option><option>Normal</option></select></div>
+            </div>
+          </div>
+
+          {/* Allergies */}
+          <div className={`rounded-2xl border p-4 space-y-3 ${sectionCardClass}`}>
+            <label className={`text-sm font-semibold flex items-center gap-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}><HeartPulse size={16} className={darkMode ? 'text-rose-400' : 'text-rose-600'} /> Drug Allergies & Intolerances</label>
+            {(formData.allergies || []).map((allergy, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2">
+                <div className="col-span-5"><input type="text" value={allergy.allergen} onChange={e => { const newAllergies = formData.allergies.map((a, i) => i === idx ? { ...a, allergen: e.target.value } : a); updateForm('allergies', newAllergies); }} className={inputClass} placeholder="Allergen (e.g. Penicillin)" /></div>
+                <div className="col-span-4"><input type="text" value={allergy.reaction} onChange={e => { const newAllergies = formData.allergies.map((a, i) => i === idx ? { ...a, reaction: e.target.value } : a); updateForm('allergies', newAllergies); }} className={inputClass} placeholder="Reaction (e.g. Rash)" /></div>
+                <div className="col-span-3"><select value={allergy.severity} onChange={e => { const newAllergies = formData.allergies.map((a, i) => i === idx ? { ...a, severity: e.target.value } : a); updateForm('allergies', newAllergies); }} className={inputClass}><option value="Mild">Mild</option><option value="Moderate">Moderate</option><option value="Severe">Severe</option><option value="Life-threatening">Life-threatening</option></select></div>
+              </div>
+            ))}
+            <button type="button" onClick={() => updateForm('allergies', [...(formData.allergies || []), { allergen: '', reaction: '', severity: 'Moderate' }])} className={`text-sm font-semibold ${darkMode ? 'text-rose-400 hover:text-rose-300' : 'text-rose-700 hover:text-rose-800'}`}>+ Add Allergy</button>
           </div>
         </div>
       );
@@ -325,7 +416,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
            
            <div className="hidden md:flex flex-col gap-6 relative">
               <div className="absolute left-[11px] top-6 bottom-6 w-0.5 bg-slate-700 z-0"></div>
-              {steps.map((step, idx) => {
+               {steps.map((step) => {
                  const Icon = step.icon;
                  const active = currentStep === step.id;
                  const past = currentStep > step.id;

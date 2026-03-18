@@ -4,11 +4,12 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  Bell,
   BrainCircuit,
   CheckCircle2,
   Clock3,
   Download,
-  FlaskConical,
+  FileSearch,
   HeartPulse,
   Info,
   Microscope,
@@ -16,14 +17,11 @@ import {
   ShieldAlert,
   Sparkles,
   Stethoscope,
-  TrendingDown,
   Upload,
   User,
   Waves,
 } from 'lucide-react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -38,6 +36,8 @@ const defaultTreatmentPlan = { type: 'Standard', dosage: 'Medium', duration: 30 
 const defaultWhatIf = { bpSystolic: 120, sugar: 100, spO2: 98, smoking: 'No', exercise: 'Moderate' };
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
+// formatPercent is kept for potential future use in metric displays
+// eslint-disable-next-line no-unused-vars
 const formatPercent = (value) => `${Math.round(clamp(value))}%`;
 
 const sectionThemes = {
@@ -145,6 +145,32 @@ const sectionThemes = {
     chartOptimized: '#94a3b8',
     chartLine: '#475569',
   },
+  alerts: {
+    layer: 'Safety Layer',
+    description: 'Real-time clinical alerts, deterioration monitoring, and early warning scores.',
+    accentBg: 'bg-rose-100',
+    accentText: 'text-rose-700',
+    accentSoft: 'bg-[linear-gradient(180deg,#ffe4e6_0%,#fff1f2_100%)]',
+    accentRing: 'ring-rose-200',
+    buttonClass: 'bg-rose-600 text-white hover:bg-rose-700',
+    chipClass: 'bg-rose-100 text-rose-700',
+    chartSelected: '#fda4af',
+    chartOptimized: '#fb7185',
+    chartLine: '#be123c',
+  },
+  trials: {
+    layer: 'Research Layer',
+    description: 'Clinical trial matching based on patient genomics, biomarkers, and eligibility criteria.',
+    accentBg: 'bg-indigo-100',
+    accentText: 'text-indigo-700',
+    accentSoft: 'bg-[linear-gradient(180deg,#e0e7ff_0%,#eef2ff_100%)]',
+    accentRing: 'ring-indigo-200',
+    buttonClass: 'bg-indigo-600 text-white hover:bg-indigo-700',
+    chipClass: 'bg-indigo-100 text-indigo-700',
+    chartSelected: '#a5b4fc',
+    chartOptimized: '#818cf8',
+    chartLine: '#4f46e5',
+  },
 };
 
 const Panel = ({ children, className = '' }) => (
@@ -163,59 +189,6 @@ const InfoHint = ({ text }) => (
     </span>
   </span>
 );
-
-const buildExpertMode = ({ patient, result, whatIfResult }) => {
-  const disease = patient?.disease || 'Unknown';
-  const biomarkers = patient?.biomarkers || {};
-  const vitals = patient?.vitals || {};
-  const conditions = patient?.conditions || [];
-
-  if (disease === 'Oncology') {
-    return {
-      title: 'Oncology Precision Twin',
-      subtitle: 'Target fit, resistance pressure, and immune context.',
-      metrics: [
-        { label: 'Target match', value: clamp((result?.effectiveness || 40) * 0.5 + 35) },
-        { label: 'Resistance control', value: clamp(100 - ((result?.risk || 30) * 0.6)) },
-      ],
-      bullets: [
-        `Primary target: ${biomarkers.therapyTarget || 'No target recorded'}`,
-        `Genomic driver: ${biomarkers.genomicVariant || 'Not assessed'}`,
-        `Immune profile: ${biomarkers.immuneProfile || 'Baseline'}`,
-      ],
-    };
-  }
-
-  if (disease === 'Cardiac') {
-    return {
-      title: 'Cardiovascular Intervention Twin',
-      subtitle: 'Hemodynamic load, reserve, and event containment.',
-      metrics: [
-        { label: 'Recovery reserve', value: clamp((patient?.metrics?.baselineHealthIndex || 40) * 0.6) },
-        { label: 'Pressure control', value: clamp(100 - (((vitals.bpSystolic || 120) - 110) * 1.4)) },
-      ],
-      bullets: [
-        `BP profile: ${vitals.bpSystolic || '--'}/${vitals.bpDiastolic || '--'}`,
-        `Symptoms: ${(patient?.symptoms || []).slice(0, 2).join(', ') || 'None logged'}`,
-        `Comorbidities: ${conditions.join(', ') || 'None reported'}`,
-      ],
-    };
-  }
-
-  return {
-    title: 'Metabolic Regulation Twin',
-    subtitle: 'Glycemic control, adaptation, and lifestyle leverage.',
-    metrics: [
-      { label: 'Adaptation gain', value: clamp(50 + ((whatIfResult?.deltas?.effectivenessChange || 0) * 6)) },
-      { label: 'Metabolic control', value: clamp(100 - (((vitals.sugar || 100) - 90) * 0.9)) },
-    ],
-    bullets: [
-      `Fasting glucose: ${vitals.sugar || '--'} mg/dL`,
-      `Lifestyle: ${patient?.lifestyle?.exercise || 'Unknown'} activity, ${patient?.lifestyle?.diet || 'Unknown'} diet`,
-      `Target axis: ${biomarkers.therapyTarget || 'Broad metabolic care'}`,
-    ],
-  };
-};
 
 const Dashboard = ({ role = 'doctor' }) => {
   const { id, section } = useParams();
@@ -244,9 +217,16 @@ const Dashboard = ({ role = 'doctor' }) => {
   const [drugIntel, setDrugIntel] = useState(null);
   const [result, setResult] = useState(null);
   const [simulationHistory, setSimulationHistory] = useState([]);
+  // ehrData and wearableStatus are fetched for future UI display
+  // eslint-disable-next-line no-unused-vars
   const [ehrData, setEhrData] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [wearableStatus, setWearableStatus] = useState(null);
   const [whatIfResult, setWhatIfResult] = useState(null);
+  const [alertsData, setAlertsData] = useState(null);
+  const [trialsData, setTrialsData] = useState(null);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [loadingTrials, setLoadingTrials] = useState(false);
 
   const [treatmentPlan, setTreatmentPlan] = useState(defaultTreatmentPlan);
   const [feedbackForm, setFeedbackForm] = useState({ effectiveness: 78, sideEffects: 18, recoveryTime: 20 });
@@ -259,6 +239,8 @@ const Dashboard = ({ role = 'doctor' }) => {
     { key: 'intake', label: 'Layer 1 Intake', icon: User },
     { key: 'simulation', label: 'Layer 2 Simulation', icon: Stethoscope },
     { key: 'insights', label: 'Layer 3-6 Insights', icon: Microscope },
+    { key: 'alerts', label: 'Clinical Alerts', icon: Bell },
+    { key: 'trials', label: 'Trial Matching', icon: FileSearch },
     { key: 'whatif', label: 'What-If Lab', icon: Sparkles },
     { key: 'learning', label: 'Learning', icon: Upload },
     { key: 'connectors', label: 'Connectors', icon: Waves },
@@ -331,6 +313,9 @@ const Dashboard = ({ role = 'doctor' }) => {
     };
 
     loadDashboard();
+    // Note: treatmentPlan, refreshSimulationHistory are intentionally excluded - initial load uses defaults,
+    // subsequent updates happen via runSimulation to avoid unnecessary re-fetches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const runSimulation = async () => {
@@ -407,10 +392,9 @@ const Dashboard = ({ role = 'doctor' }) => {
   const fetchEhr = async () => {
     setLoadingEhr(true);
     try {
-      // API key should be configured on the backend or passed via environment variable
-      const apiKey = import.meta.env.VITE_HMS_API_KEY || '';
-      const headers = apiKey ? { 'x-api-key': apiKey } : {};
-      const response = await apiClient.get(`/external/ehr-data/${id}`, { headers });
+      // API key authentication is handled server-side via backend proxy
+      // Never expose API keys on the client - the backend validates requests
+      const response = await apiClient.get(`/external/ehr-data/${id}`);
       setEhrData(response.data.data);
     } catch (ehrError) {
       console.error(ehrError);
@@ -456,25 +440,55 @@ const Dashboard = ({ role = 'doctor' }) => {
     }
   };
 
-  const precisionBoard = useMemo(() => {
-    const benefit = result?.effectiveness || patient?.metrics?.baselineHealthIndex || 0;
-    const safety = 100 - clamp(result?.risk || (patient?.metrics?.riskScore || 0) * 100);
-    const recovery = clamp(100 - (parseInt(result?.recoveryTime || '60', 10) / 60) * 100);
-    const readiness = clamp((benefit * 0.45) + (safety * 0.35) + (recovery * 0.2));
-    return { benefit, safety, recovery, readiness };
-  }, [patient, result]);
+  const fetchAlerts = async () => {
+    setLoadingAlerts(true);
+    try {
+      // Generate alerts based on current patient vitals
+      const generateResponse = await apiClient.post(`/alerts/generate`, { patientId: id });
+      // Then fetch all alerts for the patient
+      const alertsResponse = await apiClient.get(`/alerts/${id}`);
+      setAlertsData({
+        alerts: alertsResponse.data.alerts || [],
+        scores: generateResponse.data.scores || {},
+        generated: generateResponse.data.alertsGenerated || 0
+      });
+    } catch (alertsError) {
+      console.error(alertsError);
+      // Set empty data on error so UI still renders
+      setAlertsData({ alerts: [], scores: {}, generated: 0 });
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
 
-  const expertMode = useMemo(() => buildExpertMode({ patient, result, whatIfResult }), [patient, result, whatIfResult]);
+  const acknowledgeAlert = async (alertId) => {
+    try {
+      await apiClient.post(`/alerts/acknowledge`, { 
+        patientId: id, 
+        alertId, 
+        acknowledgedBy: role 
+      });
+      // Refresh alerts after acknowledgment
+      await fetchAlerts();
+    } catch (ackError) {
+      console.error(ackError);
+      setError('Failed to acknowledge alert.');
+    }
+  };
 
-  const responseBars = useMemo(() => {
-    const optimized = result?.recommendation?.comparisons?.find((item) => item.type === result?.recommendation?.best?.name)?.metrics;
-    return [
-      { label: 'Safety', selected: clamp(100 - (result?.risk || 35)), optimized: clamp(100 - (optimized?.risk || 32)) },
-      { label: 'Benefit', selected: clamp(result?.effectiveness || 45), optimized: clamp(optimized?.effectiveness || 55) },
-      { label: 'Recovery', selected: clamp(100 - (parseInt(result?.recoveryTime || '40', 10) / 60) * 100), optimized: clamp(100 - (parseInt(optimized?.recoveryTime || '35', 10) / 60) * 100) },
-      { label: 'Tolerance', selected: clamp(100 - (result?.sideEffects || 40)), optimized: clamp(100 - (optimized?.sideEffects || 36)) },
-    ];
-  }, [result]);
+  const fetchTrials = async () => {
+    setLoadingTrials(true);
+    try {
+      const response = await apiClient.post(`/trials/match/${id}`);
+      setTrialsData(response.data);
+    } catch (trialsError) {
+      console.error(trialsError);
+      // Set empty data on error so UI still renders
+      setTrialsData({ eligibleTrials: [], partialMatches: [], totalTrialsScreened: 0 });
+    } finally {
+      setLoadingTrials(false);
+    }
+  };
 
   const molecularSummary = useMemo(() => (explainability?.featureImportance || []).slice(0, 4), [explainability]);
 
@@ -501,45 +515,268 @@ const Dashboard = ({ role = 'doctor' }) => {
     );
   }
 
-  const renderOverview = () => (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-      <Panel className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className={`rounded-[26px] ${currentTheme.accentSoft} p-6`}>
-          <p className="text-sm uppercase tracking-[0.22em] text-slate-500">Adaptive twin</p>
-          <h2 className="mt-4 max-w-sm text-4xl font-semibold leading-tight">{patient?.name}'s personalized care path</h2>
-          <button onClick={() => openSection('simulation')} className={`mt-6 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition ${currentTheme.buttonClass}`}>Open simulation</button>
-          <div className="mt-8 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/70 p-4"><p className="text-slate-500">Readiness</p><p className="mt-1 text-3xl font-semibold">{formatPercent(precisionBoard.readiness)}</p></div>
-            <div className="rounded-2xl bg-white/70 p-4"><p className="text-slate-500">Urgency</p><p className="mt-1 text-3xl font-semibold">{prediction?.riskLevel || 'Medium'}</p></div>
-          </div>
-        </div>
-        <div className="space-y-5">
-          <Panel className="bg-[#f8f6f0]"><p className="text-sm text-slate-500">Treatment readiness</p><p className="mt-3 text-5xl font-semibold">{formatPercent(precisionBoard.readiness)}</p></Panel>
-          <Panel className="bg-[#f8f6f0]"><p className="text-sm text-slate-500">Calibration</p><p className="mt-3 text-5xl font-semibold">{learningState?.modelAccuracy || '--'}%</p></Panel>
-          <Panel className="bg-[#eef4f3]">
-            <div className="mb-3 flex items-center justify-between"><div><p className="text-2xl font-semibold">Response bars</p><p className="text-sm text-slate-500">Selected vs optimized treatment quality.</p></div>{canSimulate && <button onClick={runSimulation} disabled={simulating} className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}>{simulating ? 'Running...' : 'Run twin'}</button>}</div>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={responseBars}><CartesianGrid stroke="#d9ded3" vertical={false} /><XAxis dataKey="label" tickLine={false} axisLine={false} /><YAxis hide domain={[0, 100]} /><Tooltip /><Bar dataKey="selected" fill={currentTheme.chartSelected} radius={[14, 14, 14, 14]} /><Bar dataKey="optimized" fill={currentTheme.chartOptimized} radius={[14, 14, 14, 14]} /></BarChart></ResponsiveContainer></div>
+  const renderOverview = () => {
+    // Core metrics - only what matters for clinical decisions
+    const effectiveness = result?.effectiveness || 0;
+    const risk = result?.risk || 0;
+    const sideEffects = result?.sideEffects || 0;
+    const recoveryTime = result?.recoveryTime || '--';
+    const diseaseProgression = result?.diseaseProgression || 'Awaiting simulation';
+    
+    // Top risk drivers (max 3)
+    const topDrivers = (explainability?.featureImportance || []).slice(0, 3);
+    
+    // Recommendation data
+    const recommendation = result?.recommendation;
+    const bestTreatment = recommendation?.best;
+    const alternatives = recommendation?.alternatives || [];
+    const avoid = recommendation?.avoid || [];
+
+    return (
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+        {/* LEFT PANEL - Patient Summary */}
+        <div className="xl:col-span-3">
+          <Panel className={`h-full ${currentTheme.accentSoft}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-12 w-12 rounded-full bg-white/80 flex items-center justify-center">
+                <User className="h-6 w-6 text-slate-700" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{patient?.name}</h2>
+                <p className="text-sm text-slate-600">{patient?.disease || 'Unknown'} Case</p>
+              </div>
+            </div>
+            
+            <div className="space-y-3 mt-6">
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="text-xs uppercase tracking-wider text-slate-500">Health Index</p>
+                <p className="text-3xl font-bold mt-1">{Math.round(patient?.metrics?.baselineHealthIndex || 0)}<span className="text-lg text-slate-400">/100</span></p>
+              </div>
+              
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="text-xs uppercase tracking-wider text-slate-500">Risk Level</p>
+                <p className={`text-2xl font-bold mt-1 ${
+                  prediction?.riskLevel === 'High' ? 'text-rose-600' : 
+                  prediction?.riskLevel === 'Medium' ? 'text-amber-600' : 'text-emerald-600'
+                }`}>{prediction?.riskLevel || 'Medium'}</p>
+              </div>
+              
+              <div className="rounded-2xl bg-white/70 p-4">
+                <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Key Conditions</p>
+                <div className="flex flex-wrap gap-1">
+                  {(patient?.conditions || []).slice(0, 3).map((condition) => (
+                    <span key={condition} className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full">{condition}</span>
+                  ))}
+                  {(!patient?.conditions || patient.conditions.length === 0) && (
+                    <span className="text-xs text-slate-500">None reported</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {canSimulate && (
+              <button 
+                onClick={runSimulation} 
+                disabled={simulating} 
+                className={`w-full mt-6 rounded-full px-5 py-3 text-sm font-bold transition disabled:opacity-60 ${currentTheme.buttonClass}`}
+              >
+                {simulating ? 'Running...' : 'Run Simulation'}
+              </button>
+            )}
           </Panel>
         </div>
-      </Panel>
-      <div className="space-y-5">
-        <Panel>
-          <p className="text-sm text-slate-500">Specialist mode</p>
-          <h3 className="mt-2 text-3xl font-semibold">{expertMode.title}</h3>
-          <p className="mt-2 text-slate-500">{expertMode.subtitle}</p>
-          <div className="mt-5 grid grid-cols-2 gap-3">{expertMode.metrics.map((metric) => <div key={metric.label} className="rounded-2xl bg-[#f5f3ee] p-4"><p className="text-sm text-slate-500">{metric.label}</p><p className="mt-2 text-3xl font-semibold">{formatPercent(metric.value)}</p></div>)}</div>
-        </Panel>
-        <Panel>
-          <p className="text-sm text-slate-500">Biomarker translation</p>
-          <h3 className="mt-2 text-3xl font-semibold">{patient?.biomarkers?.therapyTarget || 'Broad Standard of Care'}</h3>
-          <div className="mt-4 space-y-3 text-sm text-slate-600">
-            <div className="rounded-2xl bg-[#f5f3ee] p-4">Variant: <span className="font-semibold text-slate-900">{patient?.biomarkers?.genomicVariant || 'Not assessed'}</span></div>
-            <div className="rounded-2xl bg-[#f5f3ee] p-4">Resistance: <span className="font-semibold text-slate-900">{patient?.biomarkers?.resistanceMarker || 'None reported'}</span></div>
-          </div>
-        </Panel>
+
+        {/* CENTER PANEL - Core Metrics */}
+        <div className="xl:col-span-5 space-y-5">
+          {/* 5 Core Metrics Grid */}
+          <Panel>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-slate-500">Clinical Decision Metrics</p>
+                <h3 className="text-2xl font-bold">Treatment Analysis</h3>
+              </div>
+              {result && (
+                <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                  diseaseProgression === 'Improving' ? 'bg-emerald-100 text-emerald-700' :
+                  diseaseProgression === 'Worsening' ? 'bg-rose-100 text-rose-700' :
+                  'bg-amber-100 text-amber-700'
+                }`}>
+                  {diseaseProgression}
+                </span>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Effectiveness */}
+              <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="h-4 w-4 text-emerald-600" />
+                  <p className="text-xs font-medium text-emerald-700">Effectiveness</p>
+                </div>
+                <p className="text-3xl font-bold text-emerald-700">{result ? `${Math.round(effectiveness)}%` : '--'}</p>
+              </div>
+              
+              {/* Risk */}
+              <div className="rounded-2xl bg-rose-50 border border-rose-100 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldAlert className="h-4 w-4 text-rose-600" />
+                  <p className="text-xs font-medium text-rose-700">Risk</p>
+                </div>
+                <p className="text-3xl font-bold text-rose-700">{result ? `${Math.round(risk)}%` : '--'}</p>
+              </div>
+              
+              {/* Side Effects */}
+              <div className="rounded-2xl bg-amber-50 border border-amber-100 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <p className="text-xs font-medium text-amber-700">Side Effects</p>
+                </div>
+                <p className="text-3xl font-bold text-amber-700">{result ? `${Math.round(sideEffects)}%` : '--'}</p>
+              </div>
+              
+              {/* Recovery Time */}
+              <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock3 className="h-4 w-4 text-sky-600" />
+                  <p className="text-xs font-medium text-sky-700">Recovery</p>
+                </div>
+                <p className="text-2xl font-bold text-sky-700">{recoveryTime}</p>
+              </div>
+            </div>
+          </Panel>
+
+          {/* Outcome Trajectory Graph */}
+          <Panel>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-slate-500">Outcome Trajectory</p>
+                <h3 className="text-xl font-bold">Projected Disease Path</h3>
+              </div>
+            </div>
+            <div className="h-64 w-full">
+              {result?.trajectory ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={result.trajectory}>
+                    <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: '12px', 
+                        border: 'none', 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        padding: '12px'
+                      }} 
+                    />
+                    <Line type="monotone" dataKey="Without Treatment" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="No Treatment" />
+                    <Line type="monotone" dataKey="Selected Treatment" stroke="#3b82f6" strokeWidth={3} dot={false} name="Selected" />
+                    <Line type="monotone" dataKey="Optimized Treatment" stroke="#10b981" strokeWidth={3} dot={false} name="Optimized" />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400">
+                  <div className="text-center">
+                    <Activity className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p>Run simulation to see trajectory</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Panel>
+        </div>
+
+        {/* RIGHT PANEL - AI Recommendation (HERO) + Risk Drivers */}
+        <div className="xl:col-span-4 space-y-5">
+          {/* AI Recommendation - HERO SECTION */}
+          <Panel className="bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-5 w-5 text-lime-400" />
+              <p className="text-sm font-medium text-lime-400 uppercase tracking-wider">AI Recommendation</p>
+            </div>
+            
+            {bestTreatment ? (
+              <div className="space-y-4">
+                {/* Recommended */}
+                <div className="rounded-2xl bg-emerald-500/20 border border-emerald-500/30 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Recommended</span>
+                  </div>
+                  <h4 className="text-xl font-bold text-white">{bestTreatment.name} Protocol</h4>
+                  <p className="text-sm text-slate-300 mt-1">{bestTreatment.reason}</p>
+                </div>
+                
+                {/* Alternative */}
+                {alternatives.length > 0 && (
+                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-4 w-4 text-amber-400" />
+                      <span className="text-xs font-bold text-amber-400 uppercase">Alternative</span>
+                    </div>
+                    <p className="text-sm font-semibold text-white">{alternatives[0].name} Protocol</p>
+                    <p className="text-xs text-slate-400">{alternatives[0].reason}</p>
+                  </div>
+                )}
+                
+                {/* Avoid */}
+                {avoid.length > 0 && (
+                  <div className="rounded-2xl bg-rose-500/10 border border-rose-500/20 p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShieldAlert className="h-4 w-4 text-rose-400" />
+                      <span className="text-xs font-bold text-rose-400 uppercase">Avoid</span>
+                    </div>
+                    <p className="text-sm font-semibold text-white">{avoid[0].name} Protocol</p>
+                    <p className="text-xs text-slate-400">{avoid[0].reason}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-400">
+                <BrainCircuit className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Run simulation to get AI recommendation</p>
+              </div>
+            )}
+          </Panel>
+
+          {/* Top Risk Drivers - Simplified */}
+          <Panel>
+            <div className="flex items-center gap-2 mb-4">
+              <HeartPulse className="h-5 w-5 text-rose-500" />
+              <div>
+                <p className="text-sm text-slate-500">Key Risk Drivers</p>
+                <h3 className="text-lg font-bold">Top Contributing Factors</h3>
+              </div>
+            </div>
+            
+            {topDrivers.length > 0 ? (
+              <div className="space-y-3">
+                {topDrivers.map((driver, index) => (
+                  <div key={driver.feature} className="rounded-xl bg-[#f5f3ee] p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-700">{driver.feature}</span>
+                      <span className="text-sm font-bold text-slate-900">{driver.normalizedWeight}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          index === 0 ? 'bg-rose-500' : index === 1 ? 'bg-amber-500' : 'bg-slate-400'
+                        }`}
+                        style={{ width: `${clamp(driver.normalizedWeight)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-400">
+                <p className="text-sm">Run simulation to identify risk drivers</p>
+              </div>
+            )}
+          </Panel>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderIntake = () => (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
@@ -633,6 +870,423 @@ const Dashboard = ({ role = 'doctor' }) => {
     <Panel><div className="flex items-center justify-between"><div><p className="text-sm text-slate-500">Simulation ledger</p><h3 className="mt-2 text-3xl font-semibold">Recent hypotheses</h3></div><div className="rounded-full bg-[#f5f3ee] px-4 py-2 text-sm font-semibold text-slate-600">{simulationHistory.length} run(s)</div></div><div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{simulationHistory.length ? simulationHistory.map((item, index) => <div key={`${item.timestamp}-${index}`} className="rounded-[26px] bg-[#f5f3ee] p-5"><div className="flex items-center justify-between"><div><p className="text-lg font-semibold">{item.treatmentPlan.type}</p><p className="text-sm text-slate-500">{item.treatmentPlan.dosage} dosage</p></div><Clock3 className="h-4 w-4 text-slate-400" /></div><div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><p className="text-slate-500">Effectiveness</p><p className="mt-1 font-semibold">{item.effectiveness}%</p></div><div><p className="text-slate-500">Risk</p><p className="mt-1 font-semibold">{item.risk}%</p></div><div><p className="text-slate-500">Recovery</p><p className="mt-1 font-semibold">{item.recoveryTime}</p></div><div><p className="text-slate-500">State</p><p className="mt-1 font-semibold">{item.diseaseProgression}</p></div></div></div>) : <div className="rounded-[26px] bg-[#f5f3ee] p-5 text-sm text-slate-500">No simulations recorded yet.</div>}</div></Panel>
   );
 
+  const renderAlerts = () => {
+    const alerts = alertsData?.alerts || [];
+    const scores = alertsData?.scores || {};
+    const activeAlerts = alerts.filter(a => a.status === 'active');
+    const acknowledgedAlerts = alerts.filter(a => a.status === 'acknowledged');
+
+    return (
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_0.8fr]">
+        {/* Left - Alert List */}
+        <Panel className={`${currentTheme.accentRing} ring-1`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <p>Patient Safety Monitoring</p>
+                <InfoHint text="Real-time clinical alerts based on vital signs, early warning scores (NEWS2, qSOFA), and deterioration risk." />
+              </div>
+              <h3 className="mt-2 text-3xl font-semibold">Active Alerts</h3>
+            </div>
+            <button 
+              onClick={fetchAlerts} 
+              disabled={loadingAlerts}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}
+            >
+              {loadingAlerts ? 'Loading...' : 'Refresh Alerts'}
+            </button>
+          </div>
+          
+          {activeAlerts.length === 0 && !loadingAlerts && (
+            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-6 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500 mb-3" />
+              <p className="text-emerald-700 font-semibold">No Active Alerts</p>
+              <p className="text-sm text-emerald-600 mt-1">Patient vitals are within normal parameters.</p>
+            </div>
+          )}
+          
+          <div className="space-y-3 mt-4">
+            {activeAlerts.map((alert) => (
+              <div 
+                key={alert.id} 
+                className={`rounded-2xl p-4 border ${
+                  alert.severity === 'critical' ? 'bg-rose-50 border-rose-200' :
+                  alert.severity === 'high' ? 'bg-amber-50 border-amber-200' :
+                  'bg-sky-50 border-sky-200'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 p-2 rounded-full ${
+                      alert.severity === 'critical' ? 'bg-rose-100' :
+                      alert.severity === 'high' ? 'bg-amber-100' : 'bg-sky-100'
+                    }`}>
+                      <AlertTriangle className={`h-4 w-4 ${
+                        alert.severity === 'critical' ? 'text-rose-600' :
+                        alert.severity === 'high' ? 'text-amber-600' : 'text-sky-600'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">{alert.type.replace(/_/g, ' ').toUpperCase()}</p>
+                      <p className="text-sm text-slate-600 mt-1">{alert.message}</p>
+                      <p className="text-xs text-slate-400 mt-2">{new Date(alert.timestamp).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                      alert.severity === 'critical' ? 'bg-rose-100 text-rose-700' :
+                      alert.severity === 'high' ? 'bg-amber-100 text-amber-700' :
+                      'bg-sky-100 text-sky-700'
+                    }`}>
+                      {alert.severity}
+                    </span>
+                    {canSimulate && (
+                      <button 
+                        onClick={() => acknowledgeAlert(alert.id)}
+                        className="text-xs text-slate-500 hover:text-slate-700 underline"
+                      >
+                        Acknowledge
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {acknowledgedAlerts.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm text-slate-500 mb-3">Recently Acknowledged ({acknowledgedAlerts.length})</p>
+              <div className="space-y-2">
+                {acknowledgedAlerts.slice(0, 3).map((alert) => (
+                  <div key={alert.id} className="rounded-xl bg-slate-100 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">{alert.type.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400">Ack by {alert.acknowledgedBy}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Right - Early Warning Scores */}
+        <Panel>
+          <p className="text-sm text-slate-500">Early Warning Scores</p>
+          <h3 className="mt-2 text-3xl font-semibold">Clinical Indices</h3>
+          
+          <div className="mt-5 space-y-4">
+            {/* NEWS2 Score */}
+            <div className="rounded-2xl bg-[#f5f3ee] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm text-slate-500">NEWS2 Score</p>
+                  <p className="text-sm text-slate-400">National Early Warning Score</p>
+                </div>
+                <div className={`text-4xl font-bold ${
+                  (scores.news2?.total || 0) >= 7 ? 'text-rose-600' :
+                  (scores.news2?.total || 0) >= 5 ? 'text-amber-600' :
+                  (scores.news2?.total || 0) >= 1 ? 'text-sky-600' : 'text-emerald-600'
+                }`}>
+                  {scores.news2?.total ?? '--'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`flex-1 h-2 rounded-full ${
+                  (scores.news2?.total || 0) >= 7 ? 'bg-rose-200' :
+                  (scores.news2?.total || 0) >= 5 ? 'bg-amber-200' :
+                  (scores.news2?.total || 0) >= 1 ? 'bg-sky-200' : 'bg-emerald-200'
+                }`}>
+                  <div 
+                    className={`h-2 rounded-full transition-all ${
+                      (scores.news2?.total || 0) >= 7 ? 'bg-rose-500' :
+                      (scores.news2?.total || 0) >= 5 ? 'bg-amber-500' :
+                      (scores.news2?.total || 0) >= 1 ? 'bg-sky-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(100, ((scores.news2?.total || 0) / 20) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs text-slate-500">/20</span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {(scores.news2?.total || 0) >= 7 ? 'Critical - Immediate escalation required' :
+                 (scores.news2?.total || 0) >= 5 ? 'High - Urgent response needed' :
+                 (scores.news2?.total || 0) >= 1 ? 'Low-Medium - Monitor closely' : 'Normal parameters'}
+              </p>
+            </div>
+
+            {/* qSOFA Score */}
+            <div className="rounded-2xl bg-[#f5f3ee] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm text-slate-500">qSOFA Score</p>
+                  <p className="text-sm text-slate-400">Quick Sepsis Assessment</p>
+                </div>
+                <div className={`text-4xl font-bold ${
+                  (scores.qsofa?.total || 0) >= 2 ? 'text-rose-600' : 'text-emerald-600'
+                }`}>
+                  {scores.qsofa?.total ?? '--'}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className={`rounded-xl p-2 text-center text-xs ${
+                  scores.qsofa?.components?.alteredMentation ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  Mental Status
+                </div>
+                <div className={`rounded-xl p-2 text-center text-xs ${
+                  scores.qsofa?.components?.lowBP ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  Low BP
+                </div>
+                <div className={`rounded-xl p-2 text-center text-xs ${
+                  scores.qsofa?.components?.highRR ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  High RR
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                {(scores.qsofa?.total || 0) >= 2 ? 'Sepsis risk - Consider further assessment' : 'Low sepsis risk'}
+              </p>
+            </div>
+
+            {/* Current Vitals Summary */}
+            <div className="rounded-2xl bg-[#f5f3ee] p-5">
+              <p className="text-sm text-slate-500 mb-3">Current Vitals</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Heart Rate</span>
+                  <span className="font-semibold">{patient?.vitals?.heartRate || '--'} bpm</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">SpO2</span>
+                  <span className="font-semibold">{patient?.vitals?.spO2 || '--'}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">BP</span>
+                  <span className="font-semibold">{patient?.vitals?.bpSystolic || '--'}/{patient?.vitals?.bpDiastolic || '--'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Temp</span>
+                  <span className="font-semibold">{patient?.vitals?.temperature || '--'}°F</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    );
+  };
+
+  const renderTrials = () => {
+    const eligibleTrials = trialsData?.eligibleTrials || [];
+    const partialMatches = trialsData?.partialMatches || [];
+    const totalScreened = trialsData?.totalTrialsScreened || 0;
+
+    return (
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        {/* Left - Trial Matches */}
+        <Panel className={`${currentTheme.accentRing} ring-1`}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <p>Clinical Trial Matching</p>
+                <InfoHint text="Matches patient to eligible clinical trials based on disease, genomic markers, biomarkers, and demographics." />
+              </div>
+              <h3 className="mt-2 text-3xl font-semibold">Eligible Trials</h3>
+            </div>
+            <button 
+              onClick={fetchTrials} 
+              disabled={loadingTrials}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}
+            >
+              {loadingTrials ? 'Matching...' : 'Find Trials'}
+            </button>
+          </div>
+
+          {trialsData && (
+            <div className="mb-4 flex items-center gap-3">
+              <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">
+                {eligibleTrials.length} Eligible
+              </span>
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">
+                {partialMatches.length} Partial
+              </span>
+              <span className="text-sm text-slate-500">
+                of {totalScreened} screened
+              </span>
+            </div>
+          )}
+
+          {eligibleTrials.length === 0 && !loadingTrials && trialsData && (
+            <div className="rounded-2xl bg-slate-100 p-6 text-center">
+              <FileSearch className="mx-auto h-10 w-10 text-slate-400 mb-3" />
+              <p className="text-slate-600 font-semibold">No Fully Eligible Trials</p>
+              <p className="text-sm text-slate-500 mt-1">Check partial matches below or update patient genomics.</p>
+            </div>
+          )}
+
+          {!trialsData && !loadingTrials && (
+            <div className="rounded-2xl bg-indigo-50 border border-indigo-200 p-6 text-center">
+              <FileSearch className="mx-auto h-10 w-10 text-indigo-400 mb-3" />
+              <p className="text-indigo-700 font-semibold">Click "Find Trials" to Match</p>
+              <p className="text-sm text-indigo-600 mt-1">We'll search available clinical trials for this patient.</p>
+            </div>
+          )}
+
+          <div className="space-y-4 mt-4">
+            {eligibleTrials.map((trial) => (
+              <div key={trial.nctId} className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-mono bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{trial.nctId}</span>
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold">{trial.phase}</span>
+                      <span className="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded">{trial.status}</span>
+                    </div>
+                    <h4 className="font-semibold text-slate-900 leading-tight">{trial.title}</h4>
+                    <p className="text-sm text-slate-600 mt-2">{trial.summary}</p>
+                    
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {trial.interventions?.slice(0, 3).map((intervention) => (
+                        <span key={intervention} className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600">
+                          {intervention}
+                        </span>
+                      ))}
+                    </div>
+                    
+                    {trial.matchReasons && (
+                      <div className="mt-3 text-xs text-emerald-600">
+                        <strong>Match reasons:</strong> {trial.matchReasons.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="ml-4 text-right">
+                    <div className="text-2xl font-bold text-indigo-600">{trial.matchScore}</div>
+                    <div className="text-xs text-slate-500">match score</div>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-indigo-200 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Sponsor: {trial.sponsor}</span>
+                  <a 
+                    href={trial.clinicalTrialsGovUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                  >
+                    View on ClinicalTrials.gov
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Partial Matches */}
+          {partialMatches.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm text-slate-500 mb-3">Partial Matches (may require additional criteria)</p>
+              <div className="space-y-3">
+                {partialMatches.map((trial) => (
+                  <div key={trial.nctId} className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-xs font-mono bg-amber-100 text-amber-700 px-2 py-1 rounded">{trial.nctId}</span>
+                        <p className="font-semibold text-slate-800 mt-2 text-sm">{trial.title}</p>
+                        {trial.missingCriteria && (
+                          <p className="text-xs text-amber-600 mt-2">
+                            <strong>Missing:</strong> {trial.missingCriteria.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-lg font-bold text-amber-600">{trial.matchScore}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Right - Patient Eligibility Profile */}
+        <Panel>
+          <p className="text-sm text-slate-500">Eligibility Profile</p>
+          <h3 className="mt-2 text-3xl font-semibold">Patient Criteria</h3>
+          
+          <div className="mt-5 space-y-4">
+            <div className="rounded-2xl bg-[#f5f3ee] p-4">
+              <p className="text-sm font-semibold text-slate-700 mb-2">Demographics</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Age</span>
+                  <span className="font-semibold">{patient?.age || '--'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Gender</span>
+                  <span className="font-semibold">{patient?.gender || '--'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f5f3ee] p-4">
+              <p className="text-sm font-semibold text-slate-700 mb-2">Disease & Conditions</p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Primary Disease</span>
+                  <span className="font-semibold">{patient?.disease || '--'}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {(patient?.conditions || []).map((condition) => (
+                    <span key={condition} className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded">{condition}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f5f3ee] p-4">
+              <p className="text-sm font-semibold text-slate-700 mb-2">Genomic Markers</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Variant</span>
+                  <span className="font-semibold text-right max-w-[60%] truncate">{patient?.biomarkers?.genomicVariant || 'Not assessed'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">MSI Status</span>
+                  <span className="font-semibold">{patient?.biomarkers?.genomics?.microsatelliteStatus || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">HER2</span>
+                  <span className="font-semibold">{patient?.biomarkers?.genomics?.herStatus || 'Unknown'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f5f3ee] p-4">
+              <p className="text-sm font-semibold text-slate-700 mb-2">Current Medications</p>
+              <div className="space-y-1">
+                {(patient?.medications || []).slice(0, 4).map((med, idx) => (
+                  <div key={idx} className="text-sm flex justify-between">
+                    <span className="text-slate-600">{med.name || 'Unknown'}</span>
+                    <span className="text-slate-400">{med.dosage}</span>
+                  </div>
+                ))}
+                {(!patient?.medications || patient.medications.length === 0) && (
+                  <p className="text-sm text-slate-500">No medications recorded</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-indigo-50 border border-indigo-200 p-4">
+              <p className="text-sm text-indigo-600">
+                <strong>Tip:</strong> Add genomic markers and biomarkers in the Patient Form (Step 7) to improve trial matching accuracy.
+              </p>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    );
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case 'intake':
@@ -641,6 +1295,10 @@ const Dashboard = ({ role = 'doctor' }) => {
         return renderSimulation();
       case 'insights':
         return renderInsights();
+      case 'alerts':
+        return renderAlerts();
+      case 'trials':
+        return renderTrials();
       case 'whatif':
         return renderWhatIf();
       case 'learning':

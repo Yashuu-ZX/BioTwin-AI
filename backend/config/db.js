@@ -2,7 +2,9 @@ const { mongoose } = require('./mongo');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/biotwin');
+    // Support both MONGO_URI and MONGODB_URI for compatibility
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/biotwin';
+    const conn = await mongoose.connect(mongoUri);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return true;
   } catch (error) {

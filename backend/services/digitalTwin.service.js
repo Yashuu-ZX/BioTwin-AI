@@ -109,7 +109,10 @@ const simulateBaselineProgression = (twin, days) => {
   let trajectory = [];
   let currentSeverity = 100 - twin.healthIndex; // high severity = bad
   
-  for (let i = 0; i <= days; i += Math.max(1, Math.floor(days / 10))) {
+  // Ensure step is at least 1 to prevent infinite loop
+  const step = Math.max(1, Math.floor(days / 10));
+  
+  for (let i = 0; i <= days; i += step) {
     trajectory.push({
       day: i,
       severity: Math.min(100, Math.round(currentSeverity)),

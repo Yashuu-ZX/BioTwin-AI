@@ -13,10 +13,11 @@ const sanitizeString = (str, maxLength = 255) => {
   if (typeof str !== 'string') return '';
   return str
     .slice(0, maxLength)
-    .replace(/[<>'"&]/g, (char) => {
-      const entities = { '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;', '&': '&amp;' };
-      return entities[char] || char;
-    })
+    .replace(/&/g, '&amp;')  // Replace & first to avoid double-encoding
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/'/g, '&#39;')
+    .replace(/"/g, '&quot;')
     .trim();
 };
 
@@ -130,7 +131,7 @@ const validateLifestyle = (lifestyle) => {
 
   const allowedSmoking = ['Yes', 'No', 'Past'];
   const allowedExercise = ['None', 'Rarely', 'Moderate', 'Active'];
-  const allowedAlcohol = ['Yes', 'No', 'Occasional'];
+  const allowedAlcohol = ['Yes', 'No', 'Occasional', 'Occasionally', 'Rarely', 'Frequently'];
 
   const sanitized = {};
 

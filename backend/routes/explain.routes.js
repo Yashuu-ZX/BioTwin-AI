@@ -86,10 +86,22 @@ router.post('/report', async (req, res) => {
   const { patientId, treatmentPlan } = req.body;
   if (!patientId) return res.status(400).json({ error: 'patientId required' });
 
+  // Sanitize patientId to prevent path traversal in filename
+  const sanitizedPatientId = String(patientId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 50);
+  if (!sanitizedPatientId) {
+    return res.status(400).json({ error: 'Invalid patientId format' });
+  }
+
   try {
     const report = await explainService.buildClinicianReport(patientId, treatmentPlan);
+    
+    // Validate report structure before generating PDF
+    if (!report || !report.patient || !report.simulation) {
+      return res.status(500).json({ error: 'Incomplete report data. Run simulation first.' });
+    }
+    
     const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    const filename = `biotwin-report-${patientId}.pdf`;
+    const filename = `biotwin-report-${sanitizedPatientId}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -97,38 +109,69 @@ router.post('/report', async (req, res) => {
 
     doc.fontSize(22).text('BioTwin AI Clinician Report', { underline: true });
     doc.moveDown(0.5);
-    doc.fontSize(11).text(`Generated: ${report.generatedAt}`);
-    doc.text(`Patient: ${report.patient.name} (${report.patient.patientId})`);
-    doc.text(`Disease Pathway: ${report.patient.disease}`);
-    doc.text(`Treatment Plan: ${report.treatmentPlan.type} / ${report.treatmentPlan.dosage} / ${report.treatmentPlan.duration} days`);
+    doc.fontSize(11).text(`Generated: ${report.generatedAt || new Date().toISOString()}`);
+    doc.text(`Patient: ${report.patient.name || 'Unknown'} (${report.patient.patientId || sanitizedPatientId})`);
+    doc.text(`Disease Pathway: ${report.patient.disease || 'Not specified'}`);
+    
+    // Safely access treatment plan properties
+    const treatmentType = report.treatmentPlan?.type || 'Standard';
+    const treatmentDosage = report.treatmentPlan?.dosage || 'Medium';
+    const treatmentDuration = report.treatmentPlan?.duration || 30;
+    doc.text(`Treatment Plan: ${treatmentType} / ${treatmentDosage} / ${treatmentDuration} days`);
 
     doc.moveDown();
     doc.fontSize(16).text('Simulation Summary');
-    doc.fontSize(11).text(`Effectiveness: ${report.simulation.effectiveness}%`);
-    doc.text(`Risk: ${report.simulation.risk}%`);
-    doc.text(`Side Effects: ${report.simulation.sideEffects}%`);
-    doc.text(`Best Recommendation: ${report.simulation.recommendation.best.name}`);
+    doc.fontSize(11).text(`Effectiveness: ${report.simulation.effectiveness ?? 'N/A'}%`);
+    doc.text(`Risk: ${report.simulation.risk ?? 'N/A'}%`);
+    doc.text(`Side Effects: ${report.simulation.sideEffects ?? 'N/A'}%`);
+    
+    // Safely access nested recommendation
+    const bestRecommendation = report.simulation.recommendation?.best?.name || 'Not available';
+    doc.text(`Best Recommendation: ${bestRecommendation}`);
 
     doc.moveDown();
     doc.fontSize(16).text('Top Risk Drivers');
-    report.xai.slice(0, 4).forEach((item) => doc.fontSize(11).text(`- ${item.feature}: ${item.value} (${item.normalizedWeight}%)`));
+    const xaiData = Array.isArray(report.xai) ? report.xai : [];
+    if (xaiData.length > 0) {
+      xaiData.slice(0, 4).forEach((item) => {
+        if (item && item.feature) {
+          doc.fontSize(11).text(`- ${item.feature}: ${item.value ?? 'N/A'} (${item.normalizedWeight ?? 0}%)`);
+        }
+      });
+    } else {
+      doc.fontSize(11).text('- No risk driver data available');
+    }
 
     doc.moveDown();
     doc.fontSize(16).text('Preventive Actions');
-    report.preventive.slice(0, 3).forEach((item) => doc.fontSize(11).text(`- ${item}`));
+    const preventiveData = Array.isArray(report.preventive) ? report.preventive : [];
+    if (preventiveData.length > 0) {
+      preventiveData.slice(0, 3).forEach((item) => {
+        if (item) doc.fontSize(11).text(`- ${item}`);
+      });
+    } else {
+      doc.fontSize(11).text('- No preventive actions specified');
+    }
 
     doc.moveDown();
     doc.fontSize(16).text('Cohort Match');
-    doc.fontSize(11).text(`Recommended cohort: ${report.cohort.recommendedCohort.label}`);
-    doc.text(`Similarity: ${report.cohort.recommendedCohort.similarityScore}%`);
-    doc.text(`Response rate: ${report.cohort.recommendedCohort.responseRate}%`);
+    if (report.cohort?.recommendedCohort) {
+      doc.fontSize(11).text(`Recommended cohort: ${report.cohort.recommendedCohort.label || 'Unknown'}`);
+      doc.text(`Similarity: ${report.cohort.recommendedCohort.similarityScore ?? 'N/A'}%`);
+      doc.text(`Response rate: ${report.cohort.recommendedCohort.responseRate ?? 'N/A'}%`);
+    } else {
+      doc.fontSize(11).text('- No cohort match data available');
+    }
 
     doc.moveDown();
     doc.fontSize(16).text('Drug Interaction Intelligence');
-    if (report.drugIntel.interactions.length) {
-      report.drugIntel.interactions.slice(0, 3).forEach((item) => {
-        doc.fontSize(11).text(`- ${item.pair} [${item.severity}]`);
-        doc.text(`  ${item.action}`);
+    const interactions = report.drugIntel?.interactions;
+    if (Array.isArray(interactions) && interactions.length > 0) {
+      interactions.slice(0, 3).forEach((item) => {
+        if (item) {
+          doc.fontSize(11).text(`- ${item.pair || 'Unknown'} [${item.severity || 'Unknown'}]`);
+          doc.text(`  ${item.action || 'No action specified'}`);
+        }
       });
     } else {
       doc.fontSize(11).text('- No major interaction warnings detected.');
