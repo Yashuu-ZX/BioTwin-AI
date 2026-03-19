@@ -14,7 +14,9 @@ services:
     environment:
       - NODE_ENV=production
       - MONGO_URI=${MONGO_URI:-mongodb://mongodb_cluster:27017/biotwin}
-      - JWT_SECRET=enterprisesecret9929281
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - HMS_API_KEY=${HMS_API_KEY:-}
+      - EHR_API_KEY=${EHR_API_KEY:-}
     networks:
       - healthcare_net
     depends_on:

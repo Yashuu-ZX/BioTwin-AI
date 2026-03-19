@@ -6,6 +6,54 @@ import {
   Activity, Beaker, HeartPulse, ShieldAlert, Sparkles, TrendingUp, TrendingDown, Clock, 
   CheckCircle, AlertTriangle, XCircle, Info, Stethoscope, User, AlertOctagon 
 } from 'lucide-react';
+import apiClient from '../api/apiClient';
+
+// Helper to determine Metric styling and trend - moved outside component
+const getMetricStyle = (type, value) => {
+  if (type === 'Effectiveness' || type === 'Survival') {
+    if (value >= 75) return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: TrendingUp, trend: 'up' };
+    if (value >= 50) return { color: 'text-amber-500', bg: 'bg-amber-500/10', icon: Activity, trend: 'flat' };
+    return { color: 'text-rose-500', bg: 'bg-rose-500/10', icon: TrendingDown, trend: 'down' };
+  } else {
+    // Risk and Side Effects: Lower is better
+    if (value <= 30) return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: TrendingDown, trend: 'down' };
+    if (value <= 60) return { color: 'text-amber-500', bg: 'bg-amber-500/10', icon: Activity, trend: 'flat' };
+    return { color: 'text-rose-500', bg: 'bg-rose-500/10', icon: TrendingUp, trend: 'up' };
+  }
+};
+
+// StatCard component - moved outside to prevent recreation on each render
+// eslint-disable-next-line no-unused-vars
+const StatCard = ({ title, value, unit, icon: IconComponent, type }) => {
+  const style = getMetricStyle(type, value);
+  const TrendIcon = style.icon;
+  
+  return (
+    <div className="relative overflow-hidden p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all hover:shadow-md">
+      <div className="flex justify-between items-start mb-4">
+        <p className="font-medium text-slate-500 dark:text-slate-400">{title}</p>
+        <div className={`p-2 rounded-xl ${style.bg}`}>
+          <IconComponent className={`w-5 h-5 ${style.color}`} />
+        </div>
+      </div>
+      <div className="flex items-end gap-2">
+        <span className="text-3xl font-bold text-slate-900 dark:text-white">{value}</span>
+        <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{unit}</span>
+      </div>
+      
+      {/* Trend Indicator Container */}
+      <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold">
+        <TrendIcon className={`w-4 h-4 ${style.color}`} />
+        <span className={`${style.color}`}>
+          {style.trend === 'up' && type === 'Risk' ? 'Elevated level' : 
+           style.trend === 'down' && type === 'Risk' ? 'Favorable range' : 
+           style.trend === 'up' ? 'Positive trajectory' : 
+           style.trend === 'down' ? 'Needs attention' : 'Stable'}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const DigitalTwinSimulation = () => {
   const [patientId, setPatientId] = useState('P123'); // Default mock patient
@@ -20,17 +68,11 @@ const DigitalTwinSimulation = () => {
   const runSimulation = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/simulate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          patientId,
-          treatmentPlan
-        }),
+      const response = await apiClient.post('/simulate', {
+        patientId,
+        treatmentPlan
       });
-      const data = await response.json();
+      const data = response.data;
       
       // Simulate slightly longer processing for UX effect
       setTimeout(() => {
@@ -42,51 +84,6 @@ const DigitalTwinSimulation = () => {
       console.error('Simulation Failed:', error);
       setLoading(false);
     }
-  };
-
-  // Helper to determine Metric styling and trend
-  const getMetricStyle = (type, value) => {
-    if (type === 'Effectiveness' || type === 'Survival') {
-      if (value >= 75) return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: TrendingUp, trend: 'up' };
-      if (value >= 50) return { color: 'text-amber-500', bg: 'bg-amber-500/10', icon: Activity, trend: 'flat' };
-      return { color: 'text-rose-500', bg: 'bg-rose-500/10', icon: TrendingDown, trend: 'down' };
-    } else {
-      // Risk and Side Effects: Lower is better
-      if (value <= 30) return { color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: TrendingDown, trend: 'down' };
-      if (value <= 60) return { color: 'text-amber-500', bg: 'bg-amber-500/10', icon: Activity, trend: 'flat' };
-      return { color: 'text-rose-500', bg: 'bg-rose-500/10', icon: TrendingUp, trend: 'up' };
-    }
-  };
-
-  const StatCard = ({ title, value, unit, icon: Icon, type }) => {
-    const style = getMetricStyle(type, value);
-    const TrendIcon = style.icon;
-    
-    return (
-      <div className="relative overflow-hidden p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all hover:shadow-md">
-        <div className="flex justify-between items-start mb-4">
-          <p className="font-medium text-slate-500 dark:text-slate-400">{title}</p>
-          <div className={`p-2 rounded-xl ${style.bg}`}>
-            <Icon className={`w-5 h-5 ${style.color}`} />
-          </div>
-        </div>
-        <div className="flex items-end gap-2">
-          <span className="text-3xl font-bold text-slate-900 dark:text-white">{value}</span>
-          <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{unit}</span>
-        </div>
-        
-        {/* Trend Indicator Container */}
-        <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold">
-          <TrendIcon className={`w-4 h-4 ${style.color}`} />
-          <span className={`${style.color}`}>
-            {style.trend === 'up' && type === 'Risk' ? 'Elevated level' : 
-             style.trend === 'down' && type === 'Risk' ? 'Favorable range' : 
-             style.trend === 'up' ? 'Positive trajectory' : 
-             style.trend === 'down' ? 'Needs attention' : 'Stable'}
-          </span>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -507,7 +504,7 @@ const DigitalTwinSimulation = () => {
 
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
+      <style>{`
         @keyframes fade-in {
           0% { opacity: 0; }
           100% { opacity: 1; }
@@ -518,7 +515,7 @@ const DigitalTwinSimulation = () => {
         }
         .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
         .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
-      `}} />
+      `}</style>
     </div>
   );
 };

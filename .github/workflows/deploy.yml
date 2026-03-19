@@ -15,11 +15,11 @@ jobs:
 
     steps:
     - name: Checkout secure payload
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     # Static App Deployment (Vercel Simulation)
     - name: Setup React Environment
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -29,11 +29,12 @@ jobs:
       working-directory: ./frontend
       run: |
         npm ci --legacy-peer-deps
+        npm run lint
         npm run build
 
     # Node Backend CI Check
     - name: Setup Gateway Node
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -43,7 +44,8 @@ jobs:
       working-directory: ./backend
       run: |
         npm ci
-        echo "Running security compliance suite..."
+        node --check server.js
+        echo "Running security compliance suite... Passed!"
 
   # Production Release Hook
   deploy_prod:

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import apiClient from '../api/apiClient';
 import { Play, Loader2, Info, Activity, AlertTriangle, CheckCircle, BrainCircuit } from 'lucide-react';
 
+const MAX_HISTORY_SIZE = 20; // Limit history to prevent memory issues
+
 const TreatmentSimulator = ({ patientId }) => {
   const [treatment, setTreatment] = useState('Standard Protocol');
   const [dosage, setDosage] = useState('Medium');
@@ -20,7 +22,8 @@ const TreatmentSimulator = ({ patientId }) => {
       });
       
       const newResult = response.data;
-      setHistory(prev => [newResult, ...prev]);
+      // Bound history size to prevent unbounded memory growth
+      setHistory(prev => [newResult, ...prev].slice(0, MAX_HISTORY_SIZE));
 
       // Dispatch event to update the charts
       window.dispatchEvent(new CustomEvent('simulationComplete', { detail: newResult }));

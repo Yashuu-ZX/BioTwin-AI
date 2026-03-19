@@ -4,6 +4,7 @@ const mockDB = require('../data/mockDatabase');
 const digitalTwinService = require('../services/digitalTwin.service');
 const Patient = require('../models/Patient');
 const { isMongoReady } = require('../config/mongo');
+const { validatePatientId, validateTreatmentPlan } = require('../utils/validation');
 
 const getPatientRecord = async (patientId) => {
   let patient = null;
@@ -13,6 +14,10 @@ const getPatientRecord = async (patientId) => {
       patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
     }
   } catch (error) {
+    // Log the error for debugging but continue to fallback
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('MongoDB query error, falling back to mockDB:', error.message);
+    }
     patient = null;
   }
 
@@ -22,35 +27,53 @@ const getPatientRecord = async (patientId) => {
 router.post('/simulate', async (req, res) => {
   const { patientId, treatmentPlan } = req.body;
 
-  if (!patientId || !treatmentPlan) {
-    return res.status(400).json({ error: "patientId and treatmentPlan are required" });
+  // Validate patient ID
+  const patientIdValidation = validatePatientId(patientId);
+  if (!patientIdValidation.valid) {
+    return res.status(400).json({ error: patientIdValidation.error });
   }
+
+  // Validate treatment plan
+  const treatmentValidation = validateTreatmentPlan(treatmentPlan);
+  if (!treatmentValidation.valid) {
+    return res.status(400).json({ error: treatmentValidation.error });
+  }
+  const sanitizedTreatmentPlan = treatmentValidation.sanitized;
 
   const patient = await getPatientRecord(patientId);
   if (!patient) {
     return res.status(404).json({ error: "Patient not found" });
   }
 
-  // Simulate delay to make it feel like AI processing
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  // Configurable delay to make it feel like AI processing (skip in production/test)
+  const delay = process.env.NODE_ENV === 'production' ? 0 : 1500;
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
 
-  const simulationResult = digitalTwinService.runFullSimulation(patient, treatmentPlan);
+  const simulationResult = digitalTwinService.runFullSimulation(patient, sanitizedTreatmentPlan);
   mockDB.addSimulation(patientId, {
     patientId,
-    treatmentPlan,
+    treatmentPlan: sanitizedTreatmentPlan,
     ...simulationResult,
     timestamp: new Date().toISOString()
   });
 
   res.json({
     patientId,
-    treatmentPlan,
+    treatmentPlan: sanitizedTreatmentPlan,
     ...simulationResult,
     timestamp: new Date()
   });
 });
 
 router.get('/simulate/:patientId/history', async (req, res) => {
+  // Validate patient ID from URL params
+  const patientIdValidation = validatePatientId(req.params.patientId);
+  if (!patientIdValidation.valid) {
+    return res.status(400).json({ error: patientIdValidation.error });
+  }
+
   const patient = await getPatientRecord(req.params.patientId);
 
   if (!patient) {
@@ -69,10 +92,28 @@ router.post('/predict', async (req, res) => {
     return res.status(400).json({ error: "patientData is required" });
   }
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Validate age if provided
+  if (patientData.age !== undefined) {
+    const age = Number(patientData.age);
+    if (isNaN(age) || age < 0 || age > 150) {
+      return res.status(400).json({ error: "Age must be a number between 0 and 150" });
+    }
+    patientData.age = age;
+  }
+
+  // Configurable delay (skip in test/production for faster response)
+  const delay = process.env.NODE_ENV === 'production' ? 0 : 1000;
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
   
   // Predict health trajectory without specific treatment
-  const riskScore = Math.min(99, Math.max(5, (patientData.age - 30) * 0.5 + Math.random() * 20));
+  // Use deterministic calculation based on patient data instead of random
+  const ageValue = patientData.age || 45;
+  const conditionsCount = Array.isArray(patientData.conditions) ? patientData.conditions.length : 0;
+  const bmiPenalty = patientData.bmi > 30 ? 10 : patientData.bmi > 25 ? 5 : 0;
+  const baseRisk = (ageValue - 30) * 0.5 + conditionsCount * 5 + bmiPenalty;
+  const riskScore = Math.min(99, Math.max(5, baseRisk));
 
   res.json({
     baseRiskScore: riskScore.toFixed(2),
@@ -81,6 +122,12 @@ router.post('/predict', async (req, res) => {
 });
 
 router.get('/predict/:patientId', async (req, res) => {
+  // Validate patient ID from URL params
+  const patientIdValidation = validatePatientId(req.params.patientId);
+  if (!patientIdValidation.valid) {
+    return res.status(400).json({ error: patientIdValidation.error });
+  }
+
   const patient = await getPatientRecord(req.params.patientId);
 
   if (!patient) {
