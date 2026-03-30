@@ -122,7 +122,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
       navigate(`/dashboard/${response.data.patientId}`);
     } catch (err) {
       console.error(err);
-      const message = err?.response?.data?.error || 'Failed to construct Digital Health Profile. Please try again.';
+      const message = err?.response?.data?.error || err?.message || 'Failed to construct Digital Health Profile. Please try again.';
       setSubmitStatus({ type: 'error', message });
     } finally {
       setLoading(false);
@@ -144,7 +144,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
       setSubmitStatus({ type: 'success', message: summary });
     } catch (err) {
       console.error(err);
-      setSubmitStatus({ type: 'error', message: 'Failed to parse lab panel text.' });
+      setSubmitStatus({ type: 'error', message: err?.response?.data?.error || err?.message || 'Failed to parse lab panel text.' });
     } finally {
       setParsingLab(false);
     }

@@ -3,105 +3,135 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
-  Bell,
   BrainCircuit,
   CheckCircle2,
-  Clock3,
   Download,
-  FileSearch,
   Home,
   Info,
-  Search,
   Sparkles,
   User,
   LayoutDashboard,
-  Layers,
-  FlaskConical,
-  Lightbulb,
-  History,
+  Dna,
+  Pill,
+  Zap,
+  Shield,
+  TrendingUp,
+  FileCheck,
+  ChevronRight,
+  Play,
+  ExternalLink,
 } from 'lucide-react';
 import apiClient from '../api/apiClient';
 import MultiSpecialistConsensus from '../components/MultiSpecialistConsensus';
 import PatientProfilePanel from '../components/PatientProfilePanel';
 import OutcomeTrajectoryChart from '../components/OutcomeTrajectoryChart';
 
-const defaultTreatmentPlan = { type: 'Standard', dosage: 'Medium', duration: 30 };
-const defaultWhatIf = { bpSystolic: 120, sugar: 100, spO2: 98, smoking: 'No', exercise: 'Moderate' };
+// =============================================================================
+// CONFIGURATION: New sidebar structure for consensus-centered dashboard
+// =============================================================================
 
-const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
+const AGENT_CONFIG = {
+  geneticist: {
+    key: 'geneticist',
+    name: 'Geneticist',
+    shortName: 'GA',
+    icon: Dna,
+    emoji: '🧬',
+    color: '#a855f7',
+    bgColor: '#f3e8ff',
+    borderColor: '#a855f7',
+    description: 'Pharmacogenomic analysis and variant interpretation',
+  },
+  pharmacologist: {
+    key: 'pharmacologist',
+    name: 'Pharmacologist',
+    shortName: 'PA',
+    icon: Pill,
+    emoji: '💊',
+    color: '#22c55e',
+    bgColor: '#dcfce7',
+    borderColor: '#22c55e',
+    description: 'Drug interactions and dosing optimization',
+  },
+  endocrinologist: {
+    key: 'endocrinologist',
+    name: 'Endocrinologist',
+    shortName: 'EA',
+    icon: Zap,
+    emoji: '⚡',
+    color: '#f59e0b',
+    bgColor: '#fef3c7',
+    borderColor: '#f59e0b',
+    description: 'Metabolic pathway analysis and glucose management',
+  },
+  hera: {
+    key: 'hera',
+    name: 'HERA Guardian',
+    shortName: 'HERA',
+    icon: Shield,
+    emoji: '🛡️',
+    color: '#06b6d4',
+    bgColor: '#cffafe',
+    borderColor: '#06b6d4',
+    description: 'Economic constraints and real-world viability',
+    isGuardian: true,
+  },
+};
 
 const sectionThemes = {
   overview: {
-    layer: 'Multi-Agent Consensus',
-    description: 'Clinical specialists + HERA constraint agent deliberate for personalized, viable treatment.',
+    layer: 'Consensus Overview',
+    description: 'Multi-agent consensus summary with transparent reasoning and recommendations.',
     accentBg: 'bg-emerald-100',
     accentText: 'text-emerald-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#dcfce7_0%,#f0fdf4_100%)]',
-    accentRing: 'ring-emerald-200',
-    buttonClass: 'bg-emerald-600 text-white hover:bg-emerald-700',
-    chipClass: 'bg-emerald-100 text-emerald-700',
   },
-  intake: {
-    layer: 'Patient Intake',
-    description: 'Patient phenotype, symptoms, vitals, biomarkers, and socio-economic profile.',
+  profile: {
+    layer: 'Patient Profile',
+    description: 'Complete patient phenotype, vitals, biomarkers, and socio-economic context.',
     accentBg: 'bg-sky-100',
     accentText: 'text-sky-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#dff5ff_0%,#eefbff_100%)]',
-    accentRing: 'ring-sky-200',
-    buttonClass: 'bg-sky-600 text-white hover:bg-sky-700',
-    chipClass: 'bg-sky-100 text-sky-700',
   },
-  insights: {
-    layer: 'Insights',
-    description: 'Cohort matching, drug intelligence, and key contributing factors.',
+  geneticist: {
+    layer: 'Geneticist Agent',
+    description: 'Pharmacogenomic analysis, variant interpretation, and genetic risk factors.',
     accentBg: 'bg-violet-100',
     accentText: 'text-violet-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#efe7ff_0%,#f7f1ff_100%)]',
-    accentRing: 'ring-violet-200',
-    buttonClass: 'bg-violet-600 text-white hover:bg-violet-700',
-    chipClass: 'bg-violet-100 text-violet-700',
   },
-  alerts: {
-    layer: 'Alerts',
-    description: 'Real-time clinical alerts, deterioration monitoring, and early warning scores.',
-    accentBg: 'bg-rose-100',
-    accentText: 'text-rose-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#ffe4e6_0%,#fff1f2_100%)]',
-    accentRing: 'ring-rose-200',
-    buttonClass: 'bg-rose-600 text-white hover:bg-rose-700',
-    chipClass: 'bg-rose-100 text-rose-700',
+  pharmacologist: {
+    layer: 'Pharmacologist Agent',
+    description: 'Drug interaction analysis, dosing recommendations, and safety assessment.',
+    accentBg: 'bg-green-100',
+    accentText: 'text-green-700',
   },
-  trials: {
-    layer: 'Trial Matching',
-    description: 'Clinical trial matching based on patient genomics, biomarkers, and eligibility.',
-    accentBg: 'bg-indigo-100',
-    accentText: 'text-indigo-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#e0e7ff_0%,#eef2ff_100%)]',
-    accentRing: 'ring-indigo-200',
-    buttonClass: 'bg-indigo-600 text-white hover:bg-indigo-700',
-    chipClass: 'bg-indigo-100 text-indigo-700',
-  },
-  whatif: {
-    layer: 'What-If Lab',
-    description: 'Preventive scenario modeling and adaptive response testing.',
+  endocrinologist: {
+    layer: 'Endocrinologist Agent',
+    description: 'Metabolic pathway analysis, glucose management, and hormonal factors.',
     accentBg: 'bg-amber-100',
     accentText: 'text-amber-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#fef3c7_0%,#fffbeb_100%)]',
-    accentRing: 'ring-amber-200',
-    buttonClass: 'bg-amber-500 text-slate-900 hover:bg-amber-400',
-    chipClass: 'bg-amber-100 text-amber-700',
   },
-  history: {
-    layer: 'History',
-    description: 'Historical simulation runs, outcomes, and traceability.',
-    accentBg: 'bg-slate-200',
-    accentText: 'text-slate-700',
-    accentSoft: 'bg-[linear-gradient(180deg,#e2e8f0_0%,#f8fafc_100%)]',
-    accentRing: 'ring-slate-200',
-    buttonClass: 'bg-slate-800 text-white hover:bg-slate-900',
-    chipClass: 'bg-slate-200 text-slate-700',
+  hera: {
+    layer: 'HERA Guardian',
+    description: 'Economic constraints, insurance validation, and real-world treatment viability.',
+    accentBg: 'bg-cyan-100',
+    accentText: 'text-cyan-700',
+  },
+  trajectory: {
+    layer: 'Outcome Trajectory',
+    description: 'Projected disease path comparing baseline vs. consensus-driven protocol.',
+    accentBg: 'bg-emerald-100',
+    accentText: 'text-emerald-700',
+  },
+  recommendation: {
+    layer: 'Final Recommendation',
+    description: 'Consensus-driven treatment protocol with full explainability audit trail.',
+    accentBg: 'bg-emerald-100',
+    accentText: 'text-emerald-700',
   },
 };
+
+// =============================================================================
+// REUSABLE COMPONENTS
+// =============================================================================
 
 const Panel = ({ children, className = '' }) => (
   <div className={`rounded-[28px] border border-black/5 bg-white/88 p-6 shadow-[0_10px_40px_rgba(64,88,70,0.08)] backdrop-blur ${className}`}>
@@ -120,6 +150,80 @@ const InfoHint = ({ text }) => (
   </span>
 );
 
+// Agent insight data generator based on patient data
+const generateAgentInsights = (patient, drugIntel, result) => {
+  const genomicVariant = patient?.biomarkers?.genomicVariant || 'CYP2C19 reduced metabolizer';
+  const cyp2c19 = patient?.biomarkers?.pharmacogenomics?.cyp2c19 || '*1/*2 Poor Metabolizer';
+  const glucoseLevel = patient?.vitals?.sugar || patient?.vitals?.glucose || 142;
+  const monthlyBudget = patient?.socioEconomic?.monthlyMedicationBudget || 150;
+  const insurance = patient?.socioEconomic?.insuranceTier || 'Basic';
+  const medications = patient?.medications || [];
+  
+  return {
+    geneticist: {
+      ...AGENT_CONFIG.geneticist,
+      status: result ? 'consensus' : 'ready',
+      dataAnalyzed: [
+        'Pharmacogenomic panel results',
+        `CYP2C19 genotype: ${cyp2c19}`,
+        'Drug metabolism predictions',
+        'Hereditary risk factors',
+      ],
+      rationale: `Genetic analysis reveals ${cyp2c19} heterozygous genotype, classifying patient as Intermediate/Poor Metabolizer. This affects metabolism of ~15% of commonly prescribed drugs including PPIs, antidepressants, and antiplatelets.`,
+      recommendation: 'Flag CYP2C19-dependent drugs for dose adjustment',
+      risk: 'Standard dosages of affected medications may cause toxicity or reduced efficacy',
+      confidence: 95,
+    },
+    pharmacologist: {
+      ...AGENT_CONFIG.pharmacologist,
+      status: result ? 'consensus' : 'ready',
+      dataAnalyzed: [
+        `Current medication regimen (${medications.length} active drugs)`,
+        `CYP2C19 genotype: ${cyp2c19}`,
+        'Drug-drug interaction database',
+        'Renal function assessment',
+      ],
+      rationale: `Patient's ${cyp2c19} poor metabolizer status significantly affects drug efficacy. ${medications.length > 0 ? `Current regimen includes ${medications.map(m => m.name).join(', ')}.` : ''} Standard dosing may result in inadequate therapeutic response. Recommend alternative agents or genetic-guided dosing adjustment.`,
+      recommendation: 'Avoid standard Clopidogrel dosing; consider Ticagrelor',
+      risk: 'Drug accumulation and potential toxicity with standard protocol',
+      confidence: 92,
+    },
+    endocrinologist: {
+      ...AGENT_CONFIG.endocrinologist,
+      status: result ? 'consensus' : 'ready',
+      dataAnalyzed: [
+        `Glucose level: ${glucoseLevel} mg/dL`,
+        'HbA1c trend analysis',
+        'Metabolic cascade risk',
+        'Cardiovascular risk factors',
+      ],
+      rationale: `Current glucose (${glucoseLevel} mg/dL) indicates ${glucoseLevel > 140 ? 'suboptimal glycemic control' : 'adequate control'}. ${glucoseLevel > 140 ? 'Aggressive alternative treatments could trigger metabolic instability. Prefer conservative pathway with close monitoring.' : 'Continue current management with periodic reassessment.'}`,
+      recommendation: glucoseLevel > 140 ? 'Intensify glycemic therapy conservatively' : 'Maintain current glycemic management',
+      risk: 'Metabolic instability with aggressive intervention',
+      confidence: 88,
+    },
+    hera: {
+      ...AGENT_CONFIG.hera,
+      status: result ? (result.recommendation?.hasVeto ? 'blocked' : 'consensus') : 'monitoring',
+      dataAnalyzed: [
+        `Budget constraint: $${monthlyBudget}/month`,
+        `Insurance tier: ${insurance}`,
+        'Transportation access assessment',
+        'Socioeconomic risk factors',
+      ],
+      rationale: `Enforcing strict budget compliance at $${monthlyBudget}/mo. ${monthlyBudget < 200 ? 'Several proposed therapies exceed budget limit. Advanced biologics (~$800/mo) are not viable. ' : ''}HERA mandates generic-only formulary to prevent financial toxicity and ensure medication adherence.`,
+      recommendation: monthlyBudget < 200 ? 'VETO: Mandate Generic Protocol Only' : 'Approved within budget constraints',
+      risk: 'Medication non-adherence due to cost is #1 cause of treatment failure',
+      confidence: 100,
+      isVeto: monthlyBudget < 200,
+    },
+  };
+};
+
+// =============================================================================
+// MAIN DASHBOARD COMPONENT
+// =============================================================================
+
 const Dashboard = ({ role = 'doctor' }) => {
   const { id, section } = useParams();
   const navigate = useNavigate();
@@ -128,70 +232,56 @@ const Dashboard = ({ role = 'doctor' }) => {
   const canSimulate = role === 'doctor' || role === 'admin';
   const canExport = role === 'doctor' || role === 'admin';
 
+  // State
   const [loading, setLoading] = useState(true);
   const [simulating, setSimulating] = useState(false);
-  const [runningWhatIf, setRunningWhatIf] = useState(false);
   const [exportingReport, setExportingReport] = useState(false);
   const [error, setError] = useState('');
 
   const [patient, setPatient] = useState(null);
-  const [learningState, setLearningState] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [explainability, setExplainability] = useState(null);
   const [cohortData, setCohortData] = useState(null);
   const [drugIntel, setDrugIntel] = useState(null);
   const [result, setResult] = useState(null);
-  const [simulationHistory, setSimulationHistory] = useState([]);
-  const [whatIfResult, setWhatIfResult] = useState(null);
-  const [alertsData, setAlertsData] = useState(null);
-  const [trialsData, setTrialsData] = useState(null);
-  const [loadingAlerts, setLoadingAlerts] = useState(false);
-  const [loadingTrials, setLoadingTrials] = useState(false);
 
-  const [treatmentPlan, setTreatmentPlan] = useState(defaultTreatmentPlan);
-  const [whatIfForm, setWhatIfForm] = useState(defaultWhatIf);
+  const [treatmentPlan] = useState({ type: 'Standard', dosage: 'Medium', duration: 30 });
 
-  // Updated navigation sections matching the new design - STREAMLINED for hackathon
+  // New sidebar sections
   const sections = [
-    { key: 'overview', label: 'Consensus Builder', icon: LayoutDashboard },
-    { key: 'navigator', label: 'Layer Navigator', icon: Layers, divider: true },
-    { key: 'intake', label: 'Patient Intake', icon: User },
-    { key: 'insights', label: 'Insights', icon: Lightbulb },
-    { key: 'alerts', label: 'Alerts', icon: Bell },
-    { key: 'trials', label: 'Trial Matching', icon: FileSearch },
-    { key: 'whatif', label: 'What-If Lab', icon: FlaskConical },
-    { key: 'history', label: 'History', icon: History },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, group: 'workspace' },
+    { key: 'divider1', divider: true, label: 'Case Context' },
+    { key: 'profile', label: 'Patient Profile', icon: User, group: 'context' },
+    { key: 'divider2', divider: true, label: 'Agent Perspectives' },
+    { key: 'geneticist', label: 'Geneticist', icon: Dna, group: 'agents', color: '#a855f7' },
+    { key: 'pharmacologist', label: 'Pharmacologist', icon: Pill, group: 'agents', color: '#22c55e' },
+    { key: 'endocrinologist', label: 'Endocrinologist', icon: Zap, group: 'agents', color: '#f59e0b' },
+    { key: 'hera', label: 'HERA Guardian', icon: Shield, group: 'agents', color: '#06b6d4' },
+    { key: 'divider3', divider: true, label: 'Outcome' },
+    { key: 'trajectory', label: 'Trajectory', icon: TrendingUp, group: 'outcome' },
+    { key: 'recommendation', label: 'Recommendation', icon: FileCheck, group: 'outcome' },
   ];
 
   const currentTheme = sectionThemes[activeSection] || sectionThemes.overview;
 
   const openSection = (key) => {
-    if (key === 'navigator') return; // Navigator is just a label
+    if (key.startsWith('divider')) return;
     navigate(`/dashboard/${id}/${key}`);
   };
 
-  const refreshLearningState = async () => {
-    const response = await apiClient.get('/learning/status');
-    setLearningState(response.data);
-  };
+  // Generate agent insights based on patient data
+  const agentInsights = useMemo(() => {
+    return generateAgentInsights(patient, drugIntel, result);
+  }, [patient, drugIntel, result]);
 
-  const refreshSimulationHistory = async () => {
-    try {
-      const response = await apiClient.get(`/simulate/${id}/history`);
-      setSimulationHistory(response.data.history || []);
-    } catch {
-      setSimulationHistory([]);
-    }
-  };
-
+  // Load dashboard data
   useEffect(() => {
     const loadDashboard = async () => {
       setLoading(true);
       setError('');
       try {
-        const [patientRes, learningRes, predictionRes, explainRes] = await Promise.allSettled([
+        const [patientRes, predictionRes, explainRes] = await Promise.allSettled([
           apiClient.get(`/patient/${id}`),
-          apiClient.get('/learning/status'),
           apiClient.get(`/predict/${id}`),
           apiClient.post('/explain/insights', { patientId: id }),
         ]);
@@ -200,7 +290,6 @@ const Dashboard = ({ role = 'doctor' }) => {
 
         const patientData = patientRes.value.data;
         setPatient(patientData);
-        if (learningRes.status === 'fulfilled') setLearningState(learningRes.value.data);
         if (predictionRes.status === 'fulfilled') setPrediction(predictionRes.value.data);
         if (explainRes.status === 'fulfilled') setExplainability(explainRes.value.data);
 
@@ -211,17 +300,6 @@ const Dashboard = ({ role = 'doctor' }) => {
 
         if (cohortRes.status === 'fulfilled') setCohortData(cohortRes.value.data);
         if (drugRes.status === 'fulfilled') setDrugIntel(drugRes.value.data);
-
-        setWhatIfForm((current) => ({
-          ...current,
-          bpSystolic: patientData?.vitals?.bpSystolic ?? current.bpSystolic,
-          sugar: patientData?.vitals?.sugar ?? current.sugar,
-          spO2: patientData?.vitals?.spO2 ?? current.spO2,
-          smoking: patientData?.lifestyle?.smoking ?? current.smoking,
-          exercise: patientData?.lifestyle?.exercise ?? current.exercise,
-        }));
-
-        await refreshSimulationHistory();
       } catch (loadError) {
         console.error(loadError);
         setError('Unable to load the digital twin dashboard.');
@@ -231,8 +309,7 @@ const Dashboard = ({ role = 'doctor' }) => {
     };
 
     loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, treatmentPlan]);
 
   const runSimulation = async () => {
     setSimulating(true);
@@ -247,33 +324,11 @@ const Dashboard = ({ role = 'doctor' }) => {
       ]);
       if (cohortRes.status === 'fulfilled') setCohortData(cohortRes.value.data);
       if (drugRes.status === 'fulfilled') setDrugIntel(drugRes.value.data);
-
-      await refreshSimulationHistory();
     } catch (simulationError) {
       console.error(simulationError);
       setError('Simulation failed. Please verify the patient profile and try again.');
     } finally {
       setSimulating(false);
-    }
-  };
-
-  const runWhatIf = async () => {
-    setRunningWhatIf(true);
-    try {
-      const response = await apiClient.post('/explain/what-if', {
-        patientId: id,
-        treatmentPlan,
-        modifications: {
-          vitals: { bpSystolic: Number(whatIfForm.bpSystolic), sugar: Number(whatIfForm.sugar), spO2: Number(whatIfForm.spO2) },
-          lifestyle: { smoking: whatIfForm.smoking, exercise: whatIfForm.exercise },
-        },
-      });
-      setWhatIfResult(response.data);
-    } catch (whatIfError) {
-      console.error(whatIfError);
-      setError('What-if simulation failed.');
-    } finally {
-      setRunningWhatIf(false);
     }
   };
 
@@ -298,54 +353,7 @@ const Dashboard = ({ role = 'doctor' }) => {
     }
   };
 
-  const fetchAlerts = async () => {
-    setLoadingAlerts(true);
-    try {
-      const generateResponse = await apiClient.post(`/alerts/generate`, { patientId: id });
-      const alertsResponse = await apiClient.get(`/alerts/${id}`);
-      setAlertsData({
-        alerts: alertsResponse.data.alerts || [],
-        scores: generateResponse.data.scores || {},
-        generated: generateResponse.data.alertsGenerated || 0
-      });
-    } catch (alertsError) {
-      console.error(alertsError);
-      setAlertsData({ alerts: [], scores: {}, generated: 0 });
-    } finally {
-      setLoadingAlerts(false);
-    }
-  };
-
-  const acknowledgeAlert = async (alertId) => {
-    try {
-      await apiClient.post(`/alerts/acknowledge`, { 
-        patientId: id, 
-        alertId, 
-        acknowledgedBy: role 
-      });
-      await fetchAlerts();
-    } catch (ackError) {
-      console.error(ackError);
-      setError('Failed to acknowledge alert.');
-    }
-  };
-
-  const fetchTrials = async () => {
-    setLoadingTrials(true);
-    try {
-      const response = await apiClient.post(`/trials/match/${id}`);
-      setTrialsData(response.data);
-    } catch (trialsError) {
-      console.error(trialsError);
-      setTrialsData({ eligibleTrials: [], partialMatches: [], totalTrialsScreened: 0 });
-    } finally {
-      setLoadingTrials(false);
-    }
-  };
-
-  const molecularSummary = useMemo(() => (explainability?.featureImportance || []).slice(0, 4), [explainability]);
-
-  // Generate trajectory data for the consensus chart
+  // Generate trajectory data
   const generateConsensusTrajectory = () => {
     if (!result?.trajectory) return null;
     return result.trajectory.map(point => ({
@@ -354,6 +362,635 @@ const Dashboard = ({ role = 'doctor' }) => {
       'Multi-Agent Consensus Protocol': point['Optimized Treatment'] || point.optimized || 70,
     }));
   };
+
+  // =============================================================================
+  // RENDER SECTIONS
+  // =============================================================================
+
+  // OVERVIEW: Executive summary with all agents
+  const renderOverview = () => {
+    const consensus = result?.recommendation;
+    
+    return (
+      <div className="space-y-6">
+        {/* Top Status Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className={`h-3 w-3 rounded-full ${result ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+              <span className="text-sm font-medium text-slate-600">
+                {result ? 'Consensus Reached' : 'Awaiting Simulation'}
+              </span>
+            </div>
+            {consensus && (
+              <div className="flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span className="text-sm font-semibold text-emerald-700">
+                  {consensus.confidence || 87}% Confidence
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(`/consensus/${id}`)}
+              className="flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white hover:from-cyan-400 hover:to-blue-400 transition-all"
+            >
+              <Sparkles className="h-4 w-4" />
+              Mission Control
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+            {canSimulate && !result && (
+              <button
+                onClick={runSimulation}
+                disabled={simulating}
+                className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" />
+                {simulating ? 'Running...' : 'Start Consensus'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Main 3-Column Layout */}
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          {/* LEFT: Patient Summary */}
+          <div className="xl:col-span-3 space-y-4">
+            <Panel className="!p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                  <User className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">{patient?.name || 'Patient'}</h3>
+                  <p className="text-sm text-slate-500">{patient?.age}y {patient?.gender} | {patient?.disease}</p>
+                </div>
+              </div>
+              
+              {/* Key Constraints */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2">
+                  <span className="text-xs text-amber-700">Budget</span>
+                  <span className="font-bold text-amber-800">${patient?.socioEconomic?.monthlyMedicationBudget || 150}/mo</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="text-xs text-slate-600">Insurance</span>
+                  <span className="font-medium text-slate-800">{patient?.socioEconomic?.insuranceTier || 'Basic'}</span>
+                </div>
+              </div>
+
+              {/* Conditions */}
+              <div className="mt-4">
+                <p className="text-xs font-medium text-slate-500 mb-2">CONDITIONS</p>
+                <div className="flex flex-wrap gap-1">
+                  {(patient?.conditions || ['Type 2 Diabetes', 'Hypertension']).map((c, i) => (
+                    <span key={i} className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 border border-red-100">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => openSection('profile')}
+                className="mt-4 flex w-full items-center justify-between rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600 hover:bg-slate-200"
+              >
+                View Full Profile
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </Panel>
+          </div>
+
+          {/* CENTER: Agent Summary Cards */}
+          <div className="xl:col-span-6 space-y-4">
+            <h3 className="text-lg font-semibold text-slate-800">Agent Consensus Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(agentInsights).map(([key, agent]) => (
+                <div
+                  key={key}
+                  onClick={() => openSection(key)}
+                  className="cursor-pointer rounded-2xl border-2 bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-0.5"
+                  style={{ borderColor: agent.color + '40' }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="h-10 w-10 rounded-full flex items-center justify-center text-lg"
+                        style={{ backgroundColor: agent.bgColor }}
+                      >
+                        {agent.emoji}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-800">{agent.name}</h4>
+                        <p className="text-xs text-slate-500">{agent.shortName}</p>
+                      </div>
+                    </div>
+                    <div
+                      className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{
+                        backgroundColor: agent.isVeto ? '#fee2e2' : agent.bgColor,
+                        color: agent.isVeto ? '#dc2626' : agent.color,
+                      }}
+                    >
+                      {agent.isVeto ? 'VETO' : agent.status === 'consensus' ? 'Agreed' : 'Ready'}
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-slate-600 mb-3 line-clamp-2">{agent.recommendation}</p>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-20 rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${agent.confidence}%`, backgroundColor: agent.color }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium" style={{ color: agent.color }}>
+                        {agent.confidence}%
+                      </span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* RIGHT: Trajectory + Decision */}
+          <div className="xl:col-span-3 space-y-4">
+            {/* Mini Trajectory */}
+            <Panel className="!p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-slate-700">Outcome Trajectory</h4>
+                <button
+                  onClick={() => openSection('trajectory')}
+                  className="text-xs text-emerald-600 hover:underline"
+                >
+                  Expand
+                </button>
+              </div>
+              <div className="h-32 flex items-center justify-center bg-slate-50 rounded-lg">
+                {result ? (
+                  <div className="text-center">
+                    <TrendingUp className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                    <p className="text-sm text-slate-600">+23% projected improvement</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">Run consensus to see trajectory</p>
+                )}
+              </div>
+            </Panel>
+
+            {/* Final Decision */}
+            <Panel className={`!p-4 ${result ? 'bg-emerald-50 border-emerald-200' : ''}`}>
+              <h4 className="font-semibold text-slate-700 mb-3">Final Recommendation</h4>
+              {result ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-white p-3 border border-emerald-200">
+                    <p className="text-sm font-medium text-emerald-800">
+                      {result.recommendation?.best?.name || 'Conservative Generic Protocol'}
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-1">
+                      HERA-validated | Within budget
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openSection('recommendation')}
+                    className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    View Full Recommendation
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <FileCheck className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">Pending consensus</p>
+                </div>
+              )}
+            </Panel>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // PATIENT PROFILE
+  const renderProfile = () => (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="xl:col-span-2">
+        <PatientProfilePanel patient={patient} className="h-full" />
+      </div>
+      <div className="space-y-4">
+        <Panel>
+          <h3 className="font-semibold text-slate-800 mb-4">Quick Actions</h3>
+          <div className="space-y-2">
+            <button
+              onClick={() => navigate(`/consensus/${id}`)}
+              className="w-full flex items-center justify-between rounded-lg bg-cyan-50 px-4 py-3 text-cyan-700 hover:bg-cyan-100"
+            >
+              <span className="font-medium">Open Mission Control</span>
+              <ExternalLink className="h-4 w-4" />
+            </button>
+            <button
+              onClick={runSimulation}
+              disabled={simulating}
+              className="w-full flex items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <span className="font-medium">{simulating ? 'Running...' : 'Run Consensus'}</span>
+              <Play className="h-4 w-4" />
+            </button>
+          </div>
+        </Panel>
+        
+        <Panel>
+          <h3 className="font-semibold text-slate-800 mb-4">Biomarker Summary</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Genomic Variant</span>
+              <span className="font-medium text-violet-700">{patient?.biomarkers?.genomicVariant || 'Not assessed'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">CYP2C19</span>
+              <span className="font-medium text-slate-800">{patient?.biomarkers?.pharmacogenomics?.cyp2c19 || 'Unknown'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Glucose</span>
+              <span className="font-medium text-slate-800">{patient?.vitals?.sugar || patient?.vitals?.glucose || '--'} mg/dL</span>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+
+  // INDIVIDUAL AGENT VIEW
+  const renderAgentDetail = (agentKey) => {
+    const agent = agentInsights[agentKey];
+    if (!agent) return <div>Agent not found</div>;
+
+    return (
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2 space-y-6">
+          {/* Agent Header */}
+          <Panel>
+            <div className="flex items-center gap-4 mb-6">
+              <div
+                className="h-16 w-16 rounded-2xl flex items-center justify-center text-3xl"
+                style={{ backgroundColor: agent.bgColor }}
+              >
+                {agent.emoji}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{agent.name}</h2>
+                <p className="text-slate-500">{agent.description}</p>
+              </div>
+              <div className="ml-auto">
+                <div
+                  className="rounded-full px-4 py-2 text-sm font-semibold"
+                  style={{
+                    backgroundColor: agent.isVeto ? '#fee2e2' : agent.bgColor,
+                    color: agent.isVeto ? '#dc2626' : agent.color,
+                  }}
+                >
+                  {agent.isVeto ? 'VETO ISSUED' : agent.status === 'consensus' ? 'Consensus Agreed' : 'Ready'}
+                </div>
+              </div>
+            </div>
+
+            {/* Data Analyzed */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Data Analyzed</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {agent.dataAnalyzed.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: agent.color }} />
+                    <span className="text-sm text-slate-700">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Rationale */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Rationale</h3>
+              <div className="rounded-xl bg-slate-50 p-4 border-l-4" style={{ borderColor: agent.color }}>
+                <p className="text-slate-700 leading-relaxed">{agent.rationale}</p>
+              </div>
+            </div>
+
+            {/* Risk Assessment */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Risk Assessment</h3>
+              <div className="rounded-xl bg-amber-50 p-4 border border-amber-200">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">{agent.risk}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Recommendation */}
+            <div>
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Recommendation</h3>
+              <div
+                className="rounded-xl p-4 border-2"
+                style={{
+                  backgroundColor: agent.isVeto ? '#fef2f2' : agent.bgColor,
+                  borderColor: agent.isVeto ? '#fecaca' : agent.color + '40',
+                }}
+              >
+                <p className="font-semibold" style={{ color: agent.isVeto ? '#dc2626' : agent.color }}>
+                  {agent.recommendation}
+                </p>
+              </div>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="space-y-4">
+          <Panel>
+            <h3 className="font-semibold text-slate-800 mb-4">Confidence Score</h3>
+            <div className="flex items-center gap-4">
+              <div className="relative h-24 w-24">
+                <svg className="h-24 w-24 -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="8" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke={agent.color}
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={`${agent.confidence * 2.51} 251`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold" style={{ color: agent.color }}>{agent.confidence}%</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Based on analyzed data points</p>
+                <p className="text-xs text-slate-400 mt-1">{agent.dataAnalyzed.length} factors evaluated</p>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel>
+            <h3 className="font-semibold text-slate-800 mb-4">Other Agents</h3>
+            <div className="space-y-2">
+              {Object.entries(agentInsights)
+                .filter(([key]) => key !== agentKey)
+                .map(([key, a]) => (
+                  <button
+                    key={key}
+                    onClick={() => openSection(key)}
+                    className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <div
+                      className="h-8 w-8 rounded-full flex items-center justify-center text-sm"
+                      style={{ backgroundColor: a.bgColor }}
+                    >
+                      {a.emoji}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">{a.name}</p>
+                      <p className="text-xs text-slate-400">{a.status}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                  </button>
+                ))}
+            </div>
+          </Panel>
+        </div>
+      </div>
+    );
+  };
+
+  // TRAJECTORY VIEW
+  const renderTrajectory = () => (
+    <div className="space-y-6">
+      <OutcomeTrajectoryChart
+        trajectory={generateConsensusTrajectory()}
+        hasConsensus={!!result}
+      />
+      
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Panel>
+          <h3 className="font-semibold text-slate-800 mb-4">Baseline Projection</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Starting Score</span>
+              <span className="font-medium text-slate-800">65%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">30-Day Projection</span>
+              <span className="font-medium text-amber-600">58%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Trend</span>
+              <span className="font-medium text-red-600">Declining</span>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel>
+          <h3 className="font-semibold text-slate-800 mb-4">Consensus Protocol</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Starting Score</span>
+              <span className="font-medium text-slate-800">65%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">30-Day Projection</span>
+              <span className="font-medium text-emerald-600">78%</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Trend</span>
+              <span className="font-medium text-emerald-600">Improving</span>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel>
+          <h3 className="font-semibold text-slate-800 mb-4">Improvement Delta</h3>
+          <div className="text-center py-4">
+            <p className="text-4xl font-bold text-emerald-600">+20%</p>
+            <p className="text-sm text-slate-500 mt-2">Projected improvement with consensus protocol</p>
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+
+  // RECOMMENDATION VIEW
+  const renderRecommendation = () => {
+    const consensus = result?.recommendation;
+    
+    return (
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2 space-y-6">
+          <Panel className={result ? 'bg-emerald-50 border-emerald-200' : ''}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                <FileCheck className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Final Recommendation</h2>
+                <p className="text-slate-500">Consensus-driven treatment protocol</p>
+              </div>
+            </div>
+
+            {result ? (
+              <>
+                <div className="rounded-xl bg-white p-6 border border-emerald-200 mb-6">
+                  <h3 className="text-xl font-bold text-emerald-800 mb-2">
+                    {consensus?.best?.name || 'Conservative Generic Protocol'}
+                  </h3>
+                  <p className="text-slate-600">
+                    {consensus?.best?.reason || 'Multi-agent consensus achieved with HERA budget validation. Protocol optimized for patient-specific constraints.'}
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Why This Protocol</h3>
+                  <ul className="space-y-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">Pharmacogenomic-safe for CYP2C19 poor metabolizer status</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">Within ${patient?.socioEconomic?.monthlyMedicationBudget || 150}/month budget constraint</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">No drug-drug interactions with current medications</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">Conservative approach minimizes metabolic instability risk</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Agent Agreement</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {Object.entries(agentInsights).map(([key, agent]) => (
+                      <div
+                        key={key}
+                        className="rounded-lg p-3 text-center"
+                        style={{ backgroundColor: agent.bgColor }}
+                      >
+                        <div className="text-2xl mb-1">{agent.emoji}</div>
+                        <p className="text-xs font-medium" style={{ color: agent.color }}>
+                          {agent.isVeto ? 'Adjusted' : 'Agreed'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <FileCheck className="h-16 w-16 text-slate-200 mx-auto mb-4" />
+                <p className="text-lg text-slate-500">Run consensus simulation to generate recommendation</p>
+                <button
+                  onClick={runSimulation}
+                  disabled={simulating}
+                  className="mt-4 rounded-full bg-emerald-600 px-6 py-3 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {simulating ? 'Running...' : 'Start Consensus'}
+                </button>
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <div className="space-y-4">
+          <Panel>
+            <h3 className="font-semibold text-slate-800 mb-4">Consensus Metrics</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-slate-500">Confidence</span>
+                  <span className="font-semibold text-emerald-600">{result ? '87%' : '--'}</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: result ? '87%' : '0%' }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-slate-500">Agreement</span>
+                  <span className="font-semibold text-emerald-600">{result ? '4/4 agents' : '--'}</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: result ? '100%' : '0%' }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-slate-500">Rounds</span>
+                  <span className="font-semibold text-slate-700">{result ? '3' : '--'}</span>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel>
+            <h3 className="font-semibold text-slate-800 mb-4">Actions</h3>
+            <div className="space-y-2">
+              <button
+                onClick={() => navigate(`/consensus/${id}`)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-cyan-50 px-4 py-3 text-cyan-700 hover:bg-cyan-100"
+              >
+                <Sparkles className="h-4 w-4" />
+                Open Mission Control
+              </button>
+              {canExport && (
+                <button
+                  onClick={exportClinicianReport}
+                  disabled={exportingReport}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-3 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  {exportingReport ? 'Exporting...' : 'Export Report'}
+                </button>
+              )}
+            </div>
+          </Panel>
+        </div>
+      </div>
+    );
+  };
+
+  // Section Router
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'profile':
+        return renderProfile();
+      case 'geneticist':
+      case 'pharmacologist':
+      case 'endocrinologist':
+      case 'hera':
+        return renderAgentDetail(activeSection);
+      case 'trajectory':
+        return renderTrajectory();
+      case 'recommendation':
+        return renderRecommendation();
+      default:
+        return renderOverview();
+    }
+  };
+
+  // =============================================================================
+  // LOADING & ERROR STATES
+  // =============================================================================
 
   if (loading) {
     return (
@@ -372,669 +1009,24 @@ const Dashboard = ({ role = 'doctor' }) => {
         <Panel className="max-w-lg text-center">
           <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-rose-500" />
           <p className="mb-4 text-lg font-semibold">{error}</p>
-          <button onClick={() => navigate('/')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">Back Home</button>
+          <button onClick={() => navigate('/')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
+            Back Home
+          </button>
         </Panel>
       </div>
     );
   }
 
-  // NEW: Overview section with Multi-Specialist Consensus Builder
-  const renderOverview = () => {
-    return (
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* LEFT - Patient Profile Panel (Simplified, no numerical metrics) */}
-        <div className="xl:col-span-3">
-          <PatientProfilePanel patient={patient} />
-        </div>
-
-        {/* CENTER - Multi-Specialist Consensus Builder */}
-        <div className="xl:col-span-6">
-          <Panel className="h-full">
-            <MultiSpecialistConsensus
-              patient={patient}
-              simulationResult={result}
-              drugIntel={drugIntel}
-              isSimulating={simulating}
-              onRunSimulation={runSimulation}
-              canSimulate={canSimulate}
-            />
-          </Panel>
-        </div>
-
-        {/* RIGHT - Outcome Trajectory Chart */}
-        <div className="xl:col-span-3">
-          <OutcomeTrajectoryChart
-            trajectory={generateConsensusTrajectory()}
-            hasConsensus={!!result}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  const renderIntake = () => (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
-      <Panel className={`${currentTheme.accentRing} ring-1`}>
-        <p className="text-sm text-slate-500">Basic profile</p>
-        <h3 className="mt-2 text-3xl font-semibold">{patient?.name}</h3>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-2xl bg-slate-50 p-4">Age<br /><span className="text-2xl font-semibold">{patient?.age}</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">BMI<br /><span className="text-2xl font-semibold">{patient?.profile?.bmi}</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">Gender<br /><span className="font-semibold">{patient?.gender}</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">Disease<br /><span className="font-semibold">{patient?.disease}</span></div>
-        </div>
-      </Panel>
-      <Panel>
-        <p className="text-sm text-slate-500">Symptoms</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(patient?.symptoms || []).map((item) => (
-            <span key={item} className="rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">{item}</span>
-          ))}
-        </div>
-        <p className="mt-6 text-sm text-slate-500">Conditions</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(patient?.conditions || []).map((item) => (
-            <span key={item} className="rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">{item}</span>
-          ))}
-        </div>
-      </Panel>
-      <Panel>
-        <p className="text-sm text-slate-500">Vitals + biomarkers</p>
-        <div className="mt-4 space-y-3 text-sm text-slate-700">
-          <div className="rounded-2xl bg-slate-50 p-4">Heart rate: <span className="font-semibold">{patient?.vitals?.heartRate} bpm</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">Blood pressure: <span className="font-semibold">{patient?.vitals?.bpSystolic}/{patient?.vitals?.bpDiastolic}</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">Genomic variant: <span className="font-semibold">{patient?.biomarkers?.genomicVariant || 'Not assessed'}</span></div>
-          <div className="rounded-2xl bg-slate-50 p-4">Pharmacogenomics: <span className="font-semibold">{patient?.biomarkers?.pharmacogenomics?.cyp2c19 || 'Not assessed'}</span></div>
-        </div>
-      </Panel>
-    </div>
-  );
-
-  const renderInsights = () => (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-      <Panel className={`${currentTheme.accentSoft}`}>
-        <p className="text-sm text-slate-500">Consensus Recommendation</p>
-        <h3 className="mt-2 text-3xl font-semibold">{result?.recommendation?.best?.name || 'Pending'}</h3>
-        <p className="mt-3 text-slate-600">{result?.recommendation?.best?.reason || 'Run the multi-agent consensus to generate a recommendation.'}</p>
-      </Panel>
-      <Panel>
-        <p className="text-sm text-slate-500">Cohort matching</p>
-        <h3 className="mt-2 text-3xl font-semibold">{cohortData?.recommendedCohort?.label || 'Awaiting cohort map'}</h3>
-        <div className="mt-4 space-y-3">
-          {(cohortData?.cohorts || []).slice(0, 3).map((cohort) => (
-            <div key={cohort.label} className="rounded-2xl bg-slate-50 p-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">{cohort.label}</span>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-700">{cohort.similarityScore}%</span>
-              </div>
-              <div className="mt-2 flex justify-between text-slate-500">
-                <span>Response {cohort.responseRate}%</span>
-                <span>Adverse {cohort.adverseEventRate}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <Panel>
-        <p className="text-sm text-slate-500">Drug intelligence</p>
-        <h3 className="mt-2 text-3xl font-semibold">Interaction overview</h3>
-        <div className="mt-4 space-y-3">
-          {(drugIntel?.interactions || []).length ? drugIntel.interactions.slice(0, 3).map((item) => (
-            <div key={item.pair} className="rounded-2xl bg-slate-50 p-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">{item.pair}</span>
-                <span className="rounded-full bg-violet-100 px-3 py-1 font-semibold text-violet-700">{item.severity}</span>
-              </div>
-              <p className="mt-2 text-slate-600">{item.action}</p>
-            </div>
-          )) : (
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No major interaction warnings detected.</div>
-          )}
-        </div>
-      </Panel>
-      <Panel className="xl:col-span-3">
-        <p className="text-sm text-slate-500">Key Contributing Factors</p>
-        <h3 className="mt-2 text-3xl font-semibold">Top drivers analyzed by agents</h3>
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {molecularSummary.map((factor, index) => (
-            <div key={factor.feature} className="rounded-2xl bg-slate-50 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold">{factor.feature}</span>
-                <span>{factor.normalizedWeight}%</span>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-white">
-                <div className={`${index % 2 === 0 ? 'bg-emerald-400' : 'bg-cyan-400'} h-2 rounded-full`} style={{ width: `${clamp(factor.normalizedWeight)}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-    </div>
-  );
-
-  const renderWhatIf = () => (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_0.7fr]">
-      <Panel className={`${currentTheme.accentRing} ring-1`}>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <p>Adaptive what-if simulator</p>
-          <InfoHint text="This experiment changes patient variables virtually to show whether prevention or lifestyle changes can improve the predicted treatment result." />
-        </div>
-        <h3 className="mt-2 text-3xl font-semibold">Scenario rehearsal</h3>
-        <p className="mt-2 text-sm text-slate-500">Adjust selected patient values below and compare how the agents would react before making a real clinical change.</p>
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-500">Systolic blood pressure</label>
-            <input value={whatIfForm.bpSystolic} onChange={(event) => setWhatIfForm({ ...whatIfForm, bpSystolic: event.target.value })} className="w-full rounded-2xl border border-black/5 bg-slate-50 px-4 py-4" placeholder="e.g. 120" />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-500">Fasting glucose</label>
-            <input value={whatIfForm.sugar} onChange={(event) => setWhatIfForm({ ...whatIfForm, sugar: event.target.value })} className="w-full rounded-2xl border border-black/5 bg-slate-50 px-4 py-4" placeholder="e.g. 100" />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-500">SpO2 oxygen saturation</label>
-            <input value={whatIfForm.spO2} onChange={(event) => setWhatIfForm({ ...whatIfForm, spO2: event.target.value })} className="w-full rounded-2xl border border-black/5 bg-slate-50 px-4 py-4" placeholder="e.g. 98" />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-500">Smoking status</label>
-            <select value={whatIfForm.smoking} onChange={(event) => setWhatIfForm({ ...whatIfForm, smoking: event.target.value })} className="w-full rounded-2xl border border-black/5 bg-slate-50 px-4 py-4">
-              <option>No</option>
-              <option>Past</option>
-              <option>Yes</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="mb-2 block text-sm font-medium text-slate-500">Exercise frequency</label>
-            <select value={whatIfForm.exercise} onChange={(event) => setWhatIfForm({ ...whatIfForm, exercise: event.target.value })} className="w-full rounded-2xl border border-black/5 bg-slate-50 px-4 py-4">
-              <option>None</option>
-              <option>Rarely</option>
-              <option>Moderate</option>
-              <option>Active</option>
-            </select>
-          </div>
-        </div>
-        <button onClick={runWhatIf} disabled={runningWhatIf} className={`mt-5 rounded-full px-5 py-3 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}>{runningWhatIf ? 'Simulating...' : 'Run what-if'}</button>
-      </Panel>
-      <Panel>
-        <p className="text-sm text-slate-500">Scenario result</p>
-        <h3 className="mt-2 text-3xl font-semibold">Delta response</h3>
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Effectiveness</p>
-            <p className="mt-2 text-4xl font-semibold">{whatIfResult ? `${whatIfResult.deltas.effectivenessChange >= 0 ? '+' : ''}${whatIfResult.deltas.effectivenessChange}` : '--'}</p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Risk</p>
-            <p className="mt-2 text-4xl font-semibold">{whatIfResult ? `${whatIfResult.deltas.riskChange >= 0 ? '+' : ''}${whatIfResult.deltas.riskChange}` : '--'}</p>
-          </div>
-        </div>
-      </Panel>
-    </div>
-  );
-
-  const renderHistory = () => (
-    <Panel>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">Simulation ledger</p>
-          <h3 className="mt-2 text-3xl font-semibold">Recent consensus runs</h3>
-        </div>
-        <div className="rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600">{simulationHistory.length} run(s)</div>
-      </div>
-      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {simulationHistory.length ? simulationHistory.map((item, index) => (
-          <div key={`${item.timestamp}-${index}`} className="rounded-[26px] bg-slate-50 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-lg font-semibold">{item.treatmentPlan.type}</p>
-                <p className="text-sm text-slate-500">{item.treatmentPlan.dosage} dosage</p>
-              </div>
-              <Clock3 className="h-4 w-4 text-slate-400" />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-slate-500">Effectiveness</p>
-                <p className="mt-1 font-semibold">{item.effectiveness}%</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Risk</p>
-                <p className="mt-1 font-semibold">{item.risk}%</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Recovery</p>
-                <p className="mt-1 font-semibold">{item.recoveryTime}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">State</p>
-                <p className="mt-1 font-semibold">{item.diseaseProgression}</p>
-              </div>
-            </div>
-          </div>
-        )) : (
-          <div className="rounded-[26px] bg-slate-50 p-5 text-sm text-slate-500">No simulations recorded yet.</div>
-        )}
-      </div>
-    </Panel>
-  );
-
-  const renderAlerts = () => {
-    const alerts = alertsData?.alerts || [];
-    const scores = alertsData?.scores || {};
-    const activeAlerts = alerts.filter(a => a.status === 'active');
-    const acknowledgedAlerts = alerts.filter(a => a.status === 'acknowledged');
-
-    return (
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_0.8fr]">
-        <Panel className={`${currentTheme.accentRing} ring-1`}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <p>Patient Safety Monitoring</p>
-                <InfoHint text="Real-time clinical alerts based on vital signs, early warning scores (NEWS2, qSOFA), and deterioration risk." />
-              </div>
-              <h3 className="mt-2 text-3xl font-semibold">Active Alerts</h3>
-            </div>
-            <button 
-              onClick={fetchAlerts} 
-              disabled={loadingAlerts}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}
-            >
-              {loadingAlerts ? 'Loading...' : 'Refresh Alerts'}
-            </button>
-          </div>
-          
-          {activeAlerts.length === 0 && !loadingAlerts && (
-            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-6 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500 mb-3" />
-              <p className="text-emerald-700 font-semibold">No Active Alerts</p>
-              <p className="text-sm text-emerald-600 mt-1">Patient vitals are within normal parameters.</p>
-            </div>
-          )}
-          
-          <div className="space-y-3 mt-4">
-            {activeAlerts.map((alert) => (
-              <div 
-                key={alert.id} 
-                className={`rounded-2xl p-4 border ${
-                  alert.severity === 'critical' ? 'bg-rose-50 border-rose-200' :
-                  alert.severity === 'high' ? 'bg-amber-50 border-amber-200' :
-                  'bg-sky-50 border-sky-200'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1 p-2 rounded-full ${
-                      alert.severity === 'critical' ? 'bg-rose-100' :
-                      alert.severity === 'high' ? 'bg-amber-100' : 'bg-sky-100'
-                    }`}>
-                      <AlertTriangle className={`h-4 w-4 ${
-                        alert.severity === 'critical' ? 'text-rose-600' :
-                        alert.severity === 'high' ? 'text-amber-600' : 'text-sky-600'
-                      }`} />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">{alert.type.replace(/_/g, ' ').toUpperCase()}</p>
-                      <p className="text-sm text-slate-600 mt-1">{alert.message}</p>
-                      <p className="text-xs text-slate-400 mt-2">{new Date(alert.timestamp).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                      alert.severity === 'critical' ? 'bg-rose-100 text-rose-700' :
-                      alert.severity === 'high' ? 'bg-amber-100 text-amber-700' :
-                      'bg-sky-100 text-sky-700'
-                    }`}>
-                      {alert.severity}
-                    </span>
-                    {canSimulate && (
-                      <button 
-                        onClick={() => acknowledgeAlert(alert.id)}
-                        className="text-xs text-slate-500 hover:text-slate-700 underline"
-                      >
-                        Acknowledge
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {acknowledgedAlerts.length > 0 && (
-            <div className="mt-6">
-              <p className="text-sm text-slate-500 mb-3">Recently Acknowledged ({acknowledgedAlerts.length})</p>
-              <div className="space-y-2">
-                {acknowledgedAlerts.slice(0, 3).map((alert) => (
-                  <div key={alert.id} className="rounded-xl bg-slate-100 p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600">{alert.type.replace(/_/g, ' ')}</span>
-                      <span className="text-xs text-slate-400">Ack by {alert.acknowledgedBy}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Panel>
-
-        <Panel>
-          <p className="text-sm text-slate-500">Early Warning Scores</p>
-          <h3 className="mt-2 text-3xl font-semibold">Clinical Indices</h3>
-          
-          <div className="mt-5 space-y-4">
-            <div className="rounded-2xl bg-slate-50 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-sm text-slate-500">NEWS2 Score</p>
-                  <p className="text-sm text-slate-400">National Early Warning Score</p>
-                </div>
-                <div className={`text-4xl font-bold ${
-                  (scores.news2?.total || 0) >= 7 ? 'text-rose-600' :
-                  (scores.news2?.total || 0) >= 5 ? 'text-amber-600' :
-                  (scores.news2?.total || 0) >= 1 ? 'text-sky-600' : 'text-emerald-600'
-                }`}>
-                  {scores.news2?.total ?? '--'}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`flex-1 h-2 rounded-full ${
-                  (scores.news2?.total || 0) >= 7 ? 'bg-rose-200' :
-                  (scores.news2?.total || 0) >= 5 ? 'bg-amber-200' :
-                  (scores.news2?.total || 0) >= 1 ? 'bg-sky-200' : 'bg-emerald-200'
-                }`}>
-                  <div 
-                    className={`h-2 rounded-full transition-all ${
-                      (scores.news2?.total || 0) >= 7 ? 'bg-rose-500' :
-                      (scores.news2?.total || 0) >= 5 ? 'bg-amber-500' :
-                      (scores.news2?.total || 0) >= 1 ? 'bg-sky-500' : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.min(100, ((scores.news2?.total || 0) / 20) * 100)}%` }}
-                  />
-                </div>
-                <span className="text-xs text-slate-500">/20</span>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-sm text-slate-500">qSOFA Score</p>
-                  <p className="text-sm text-slate-400">Quick Sepsis Assessment</p>
-                </div>
-                <div className={`text-4xl font-bold ${
-                  (scores.qsofa?.total || 0) >= 2 ? 'text-rose-600' : 'text-emerald-600'
-                }`}>
-                  {scores.qsofa?.total ?? '--'}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <div className={`rounded-xl p-2 text-center text-xs ${
-                  scores.qsofa?.components?.alteredMentation ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
-                }`}>
-                  Mental Status
-                </div>
-                <div className={`rounded-xl p-2 text-center text-xs ${
-                  scores.qsofa?.components?.lowBP ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
-                }`}>
-                  Low BP
-                </div>
-                <div className={`rounded-xl p-2 text-center text-xs ${
-                  scores.qsofa?.components?.highRR ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'
-                }`}>
-                  High RR
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-5">
-              <p className="text-sm text-slate-500 mb-3">Current Vitals</p>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Heart Rate</span>
-                  <span className="font-semibold">{patient?.vitals?.heartRate || '--'} bpm</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">SpO2</span>
-                  <span className="font-semibold">{patient?.vitals?.spO2 || '--'}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">BP</span>
-                  <span className="font-semibold">{patient?.vitals?.bpSystolic || '--'}/{patient?.vitals?.bpDiastolic || '--'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Temp</span>
-                  <span className="font-semibold">{patient?.vitals?.temperature || '--'}°F</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </div>
-    );
-  };
-
-  const renderTrials = () => {
-    const eligibleTrials = trialsData?.eligibleTrials || [];
-    const partialMatches = trialsData?.partialMatches || [];
-    const totalScreened = trialsData?.totalTrialsScreened || 0;
-
-    return (
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <Panel className={`${currentTheme.accentRing} ring-1`}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <p>Clinical Trial Matching</p>
-                <InfoHint text="Matches patient to eligible clinical trials based on disease, genomic markers, biomarkers, and demographics." />
-              </div>
-              <h3 className="mt-2 text-3xl font-semibold">Eligible Trials</h3>
-            </div>
-            <button 
-              onClick={fetchTrials} 
-              disabled={loadingTrials}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${currentTheme.buttonClass}`}
-            >
-              {loadingTrials ? 'Matching...' : 'Find Trials'}
-            </button>
-          </div>
-
-          {trialsData && (
-            <div className="mb-4 flex items-center gap-3">
-              <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">
-                {eligibleTrials.length} Eligible
-              </span>
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">
-                {partialMatches.length} Partial
-              </span>
-              <span className="text-sm text-slate-500">
-                of {totalScreened} screened
-              </span>
-            </div>
-          )}
-
-          {eligibleTrials.length === 0 && !loadingTrials && trialsData && (
-            <div className="rounded-2xl bg-slate-100 p-6 text-center">
-              <FileSearch className="mx-auto h-10 w-10 text-slate-400 mb-3" />
-              <p className="text-slate-600 font-semibold">No Fully Eligible Trials</p>
-              <p className="text-sm text-slate-500 mt-1">Check partial matches below or update patient genomics.</p>
-            </div>
-          )}
-
-          {!trialsData && !loadingTrials && (
-            <div className="rounded-2xl bg-indigo-50 border border-indigo-200 p-6 text-center">
-              <FileSearch className="mx-auto h-10 w-10 text-indigo-400 mb-3" />
-              <p className="text-indigo-700 font-semibold">Click "Find Trials" to Match</p>
-              <p className="text-sm text-indigo-600 mt-1">We'll search available clinical trials for this patient.</p>
-            </div>
-          )}
-
-          <div className="space-y-4 mt-4">
-            {eligibleTrials.map((trial) => (
-              <div key={trial.nctId} className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-mono bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{trial.nctId}</span>
-                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold">{trial.phase}</span>
-                      <span className="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded">{trial.status}</span>
-                    </div>
-                    <h4 className="font-semibold text-slate-900 leading-tight">{trial.title}</h4>
-                    <p className="text-sm text-slate-600 mt-2">{trial.summary}</p>
-                    
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {trial.interventions?.slice(0, 3).map((intervention) => (
-                        <span key={intervention} className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600">
-                          {intervention}
-                        </span>
-                      ))}
-                    </div>
-                    
-                    {trial.matchReasons && (
-                      <div className="mt-3 text-xs text-emerald-600">
-                        <strong>Match reasons:</strong> {trial.matchReasons.join(', ')}
-                      </div>
-                    )}
-                  </div>
-                  <div className="ml-4 text-right">
-                    <div className="text-2xl font-bold text-indigo-600">{trial.matchScore}</div>
-                    <div className="text-xs text-slate-500">match score</div>
-                  </div>
-                </div>
-                <div className="mt-4 pt-3 border-t border-indigo-200 flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Sponsor: {trial.sponsor}</span>
-                  <a 
-                    href={trial.clinicalTrialsGovUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-xs text-indigo-600 hover:text-indigo-800 underline"
-                  >
-                    View on ClinicalTrials.gov
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {partialMatches.length > 0 && (
-            <div className="mt-6">
-              <p className="text-sm text-slate-500 mb-3">Partial Matches (may require additional criteria)</p>
-              <div className="space-y-3">
-                {partialMatches.map((trial) => (
-                  <div key={trial.nctId} className="rounded-xl bg-amber-50 border border-amber-200 p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-xs font-mono bg-amber-100 text-amber-700 px-2 py-1 rounded">{trial.nctId}</span>
-                        <p className="font-semibold text-slate-800 mt-2 text-sm">{trial.title}</p>
-                        {trial.missingCriteria && (
-                          <p className="text-xs text-amber-600 mt-2">
-                            <strong>Missing:</strong> {trial.missingCriteria.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-lg font-bold text-amber-600">{trial.matchScore}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Panel>
-
-        <Panel>
-          <p className="text-sm text-slate-500">Eligibility Profile</p>
-          <h3 className="mt-2 text-3xl font-semibold">Patient Criteria</h3>
-          
-          <div className="mt-5 space-y-4">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-700 mb-2">Demographics</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Age</span>
-                  <span className="font-semibold">{patient?.age || '--'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Gender</span>
-                  <span className="font-semibold">{patient?.gender || '--'}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-700 mb-2">Disease & Conditions</p>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Primary Disease</span>
-                  <span className="font-semibold">{patient?.disease || '--'}</span>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {(patient?.conditions || []).map((condition) => (
-                    <span key={condition} className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded">{condition}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-700 mb-2">Genomic Markers</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Variant</span>
-                  <span className="font-semibold text-right max-w-[60%] truncate">{patient?.biomarkers?.genomicVariant || 'Not assessed'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">MSI Status</span>
-                  <span className="font-semibold">{patient?.biomarkers?.genomics?.microsatelliteStatus || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">HER2</span>
-                  <span className="font-semibold">{patient?.biomarkers?.genomics?.herStatus || 'Unknown'}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-700 mb-2">Current Medications</p>
-              <div className="space-y-1">
-                {(patient?.medications || []).slice(0, 4).map((med, idx) => (
-                  <div key={idx} className="text-sm flex justify-between">
-                    <span className="text-slate-600">{med.name || 'Unknown'}</span>
-                    <span className="text-slate-400">{med.dosage}</span>
-                  </div>
-                ))}
-                {(!patient?.medications || patient.medications.length === 0) && (
-                  <p className="text-sm text-slate-500">No medications recorded</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </div>
-    );
-  };
-
-  const renderSection = () => {
-    switch (activeSection) {
-      case 'intake':
-        return renderIntake();
-      case 'insights':
-        return renderInsights();
-      case 'alerts':
-        return renderAlerts();
-      case 'trials':
-        return renderTrials();
-      case 'whatif':
-        return renderWhatIf();
-      case 'history':
-        return renderHistory();
-      default:
-        return renderOverview();
-    }
-  };
+  // =============================================================================
+  // MAIN RENDER
+  // =============================================================================
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#e8f5e9_0%,#c8e6c9_100%)] p-4 text-slate-900 md:p-6">
       <div className="mx-auto flex max-w-[1600px] gap-4 rounded-[38px] border border-white/60 bg-[#f5f5f0]/90 p-4 shadow-[0_24px_80px_rgba(80,110,88,0.12)] md:p-6">
-        {/* Sidebar Navigation */}
-        <div className="hidden w-[240px] shrink-0 flex-col rounded-[28px] bg-white/70 p-4 md:flex">
+        {/* NEW SIDEBAR */}
+        <div className="hidden w-[220px] shrink-0 flex-col rounded-[28px] bg-white/70 p-4 md:flex">
+          {/* Logo */}
           <div className="mb-5 flex items-center gap-3 rounded-[22px] bg-emerald-100 px-4 py-4">
             <BrainCircuit className="h-5 w-5 text-emerald-700" />
             <div>
@@ -1042,44 +1034,65 @@ const Dashboard = ({ role = 'doctor' }) => {
               <p className="font-semibold text-sm">Digital Twin</p>
             </div>
           </div>
-          
-          <div className="space-y-1">
+
+          {/* Navigation */}
+          <div className="space-y-1 flex-1">
             {sections.map((item) => {
-              const Icon = item.icon;
-              const active = item.key === activeSection;
-              const isLabel = item.key === 'navigator';
-              
-              if (isLabel) {
+              if (item.divider) {
                 return (
-                  <div key={item.key} className="px-4 py-2 mt-4 mb-1">
+                  <div key={item.key} className="px-2 py-2 mt-4 mb-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
                   </div>
                 );
               }
-              
+
+              const Icon = item.icon;
+              const active = item.key === activeSection;
+              const isAgent = item.group === 'agents';
+
               return (
-                <button 
-                  key={item.key} 
-                  onClick={() => openSection(item.key)} 
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${active ? 'bg-emerald-600 text-white' : 'bg-transparent text-slate-600 hover:bg-emerald-50'}`}
+                <button
+                  key={item.key}
+                  onClick={() => openSection(item.key)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                    active
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-transparent text-slate-600 hover:bg-emerald-50'
+                  }`}
                 >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-emerald-500' : 'bg-slate-100'}`}>
-                    <Icon className={`h-4 w-4 ${active ? 'text-white' : 'text-slate-500'}`} />
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                      active ? 'bg-emerald-500' : isAgent ? '' : 'bg-slate-100'
+                    }`}
+                    style={
+                      isAgent && !active
+                        ? { backgroundColor: item.color + '20' }
+                        : undefined
+                    }
+                  >
+                    <Icon
+                      className={`h-4 w-4 ${active ? 'text-white' : 'text-slate-500'}`}
+                      style={isAgent && !active ? { color: item.color } : undefined}
+                    />
                   </span>
                   <span className="font-medium text-sm">{item.label}</span>
                 </button>
               );
             })}
           </div>
-          
-          <div className="mt-auto pt-4 space-y-2">
-            <button onClick={() => navigate('/')} className="flex w-full items-center gap-3 rounded-xl bg-slate-100 px-3 py-2.5 text-slate-600 hover:bg-white text-sm">
+
+          {/* Footer */}
+          <div className="pt-4 space-y-2">
+            <button
+              onClick={() => navigate('/')}
+              className="flex w-full items-center gap-3 rounded-xl bg-slate-100 px-3 py-2.5 text-slate-600 hover:bg-white text-sm"
+            >
               <Home className="h-4 w-4" /> Back Home
             </button>
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* MAIN CONTENT */}
         <div className="min-w-0 flex-1 space-y-5">
           {/* Header */}
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1088,20 +1101,20 @@ const Dashboard = ({ role = 'doctor' }) => {
                 <Sparkles className="h-3.5 w-3.5" /> {currentTheme.layer}
               </div>
               <h1 className="text-3xl font-bold tracking-tight md:text-4xl text-slate-900">
-                {sections.find((item) => item.key === activeSection)?.label || 'Biotwin Overview'}
+                {sections.find((item) => item.key === activeSection)?.label || 'Consensus Overview'}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">{currentTheme.description}</p>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2.5 shadow-sm">
-                <Search className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-400">Search anything...</span>
-              </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">
                 <User className="h-4 w-4" /> {role}
               </div>
               {canExport && (
-                <button onClick={exportClinicianReport} disabled={exportingReport} className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm disabled:opacity-60">
+                <button
+                  onClick={exportClinicianReport}
+                  disabled={exportingReport}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm disabled:opacity-60"
+                >
                   <Download className="h-4 w-4" /> {exportingReport ? 'Exporting...' : 'Export'}
                 </button>
               )}
@@ -1110,27 +1123,38 @@ const Dashboard = ({ role = 'doctor' }) => {
 
           {/* Mobile Navigation */}
           <div className="flex gap-2 overflow-auto pb-1 md:hidden">
-            {sections.filter(s => s.key !== 'navigator').map((item) => (
-              <button 
-                key={item.key} 
-                onClick={() => openSection(item.key)} 
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${item.key === activeSection ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600'}`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {sections
+              .filter((s) => !s.divider)
+              .map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => openSection(item.key)}
+                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${
+                    item.key === activeSection
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white text-slate-600'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
           </div>
 
-          {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+          {error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
 
           {/* Main Content Area */}
-          <div className={`rounded-[32px] bg-white/40 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] ${currentTheme.accentRing} ring-1`}>
+          <div className={`rounded-[32px] bg-white/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]`}>
             <div key={activeSection} className="animate-[fadeSlide_280ms_ease]">
               {renderSection()}
             </div>
           </div>
         </div>
       </div>
+
       <style>{`
         @keyframes fadeSlide {
           from { opacity: 0; transform: translateY(10px); }

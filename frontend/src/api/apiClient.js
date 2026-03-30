@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json'
   },
@@ -124,9 +126,8 @@ export const getNegotiationTelemetry = async (sessionId) => {
  * @returns {string} WebSocket URL
  */
 export const getTelemetryWebSocketUrl = () => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-  const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
-  const host = baseUrl.replace(/^https?:\/\//, '').replace(/\/api$/, '');
+  const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss' : 'ws';
+  const host = apiBaseUrl.replace(/^https?:\/\//, '').replace(/\/api$/, '');
   return `${wsProtocol}://${host}`;
 };
 
