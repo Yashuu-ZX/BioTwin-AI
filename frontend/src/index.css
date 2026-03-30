@@ -1,41 +1,198 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
+  /* Pale green healthcare palette */
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+  --color-brand-900: #14532d;
   
-  --color-surface-900: #0f172a;
-  --color-surface-800: #1e293b;
-  --color-surface-700: #334155;
-  --color-surface-600: #475569;
+  /* Surface colors - soft neutrals */
+  --color-surface-50: #fafaf9;
+  --color-surface-100: #f5f5f4;
+  --color-surface-200: #e7e5e4;
+  --color-surface-300: #d6d3d1;
+  --color-surface-900: #1c1917;
+  --color-surface-800: #292524;
+  --color-surface-700: #44403c;
+  --color-surface-600: #57534e;
+  
+  /* Agent specialty colors */
+  --color-pharmacologist: #8b5cf6;
+  --color-geneticist: #06b6d4;
+  --color-endocrinologist: #f59e0b;
+  --color-lead-physician: #10b981;
+  --color-consensus: #059669;
+  --color-hera: #e11d48;
+  --color-veto: #dc2626;
 }
 
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--color-surface-900);
-  color: #f8fafc;
+  background-color: #e8f5e9;
+  color: #1e293b;
   -webkit-font-smoothing: antialiased;
 }
 
+/* Premium panel styles */
 .glass-panel {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 40px rgba(64, 88, 70, 0.08);
+}
+
+.premium-surface {
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  border-radius: 28px;
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 10px 40px rgba(64, 88, 70, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Agent card styles */
+.agent-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.agent-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.agent-card-pharmacologist {
+  border-left: 4px solid var(--color-pharmacologist);
+}
+
+.agent-card-geneticist {
+  border-left: 4px solid var(--color-geneticist);
+}
+
+.agent-card-endocrinologist {
+  border-left: 4px solid var(--color-endocrinologist);
+}
+
+.agent-card-lead-physician {
+  border-left: 4px solid var(--color-lead-physician);
+}
+
+.agent-card-hera {
+  border-left: 4px solid var(--color-hera);
+}
+
+/* HERA Veto styling */
+.veto-card {
+  background: linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%);
+  border-left: 4px solid var(--color-veto);
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.12);
+  position: relative;
+}
+
+.veto-card:hover {
+  box-shadow: 0 8px 30px rgba(220, 38, 38, 0.18);
+}
+
+.veto-badge {
+  animation: vetoPulse 2s ease-in-out infinite;
+}
+
+@keyframes vetoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
+/* HERA constraint panel */
+.hera-constraint-panel {
+  background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%);
+  border: 2px solid #e11d48;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(225, 29, 72, 0.15);
+}
+
+/* Connection lines for agent graph */
+.agent-connection {
+  stroke: #d1d5db;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  animation: flowDash 1s linear infinite;
+}
+
+.agent-connection-active {
+  stroke: var(--color-consensus);
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Consensus panel */
+.consensus-panel {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 2px solid #10b981;
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.15);
+}
+
+/* Simulation status indicator */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-running {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* Pulse animation for running status */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
 }
 
 .gradient-text {
-  background: linear-gradient(90deg, #60a5fa, #c084fc, #ec4899);
+  background: linear-gradient(90deg, #22c55e, #10b981, #059669);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

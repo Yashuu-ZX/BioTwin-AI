@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const http = require('http');
 const connectDB = require('./config/db');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+
+// Create HTTP server for WebSocket support
+const httpServer = http.createServer(app);
 
 // Database connection status (will be set after async connection)
 let dbConnected = false;
@@ -106,6 +110,7 @@ const explainRoutes = require('./routes/explain.routes');
 const pharmacologyRoutes = require('./routes/pharmacology.routes');
 const alertsRoutes = require('./routes/alerts.routes');
 const trialsRoutes = require('./routes/trials.routes');
+const negotiationRoutes = require('./routes/negotiation.routes');
 
 app.use('/api/patient', patientRoutes);
 app.use('/api', simulationRoutes); // /api/simulate and /api/predict
@@ -115,14 +120,25 @@ app.use('/api/explain', explainRoutes); // Layer 6 Advanced Intelligence & XAI
 app.use('/api/pharmacology', pharmacologyRoutes); // Drug interactions & PK/PD modeling
 app.use('/api/alerts', alertsRoutes); // Clinical alerts & deterioration monitoring
 app.use('/api/trials', trialsRoutes); // Clinical trial matching
+app.use('/api/negotiate', negotiationRoutes); // Multi-round agent negotiation protocol
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const telemetryServer = require('./websocket/telemetryServer');
   res.json({ 
     status: "healthy",
     service: "BioTwin AI API",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      agentNegotiation: true,
+      websocketTelemetry: true,
+      humanInTheLoop: true
+    },
+    websocket: {
+      path: '/ws/telemetry',
+      connectedClients: telemetryServer.getClientCount()
+    }
   });
 });
 
@@ -194,15 +210,21 @@ const startServer = async () => {
     logger.warn('Database connection failed, continuing with in-memory store', { error: err.message });
   }
   
-  const server = app.listen(PORT, () => {
+  // Initialize WebSocket server for real-time telemetry
+  const telemetryServer = require('./websocket/telemetryServer');
+  telemetryServer.initializeWebSocket(httpServer);
+  logger.info('WebSocket telemetry server initialized', { path: '/ws/telemetry' });
+  
+  httpServer.listen(PORT, () => {
     logger.info(`BioTwin API Server started`, { 
       port: PORT, 
       env: process.env.NODE_ENV || 'development',
-      database: dbConnected ? 'MongoDB' : 'In-Memory MockDB'
+      database: dbConnected ? 'MongoDB' : 'In-Memory MockDB',
+      features: ['Agent Negotiation', 'WebSocket Telemetry', 'HITL Interventions']
     });
   });
   
-  return server;
+  return httpServer;
 };
 
 // Initialize server

@@ -302,6 +302,43 @@ const PatientSchema = new mongoose.Schema({
     preferredContactMethod: { type: String, enum: ['Phone', 'Email', 'Portal', 'Mail'], default: 'Phone' },
     language: { type: String, default: 'English' },
     interpreterNeeded: { type: Boolean, default: false }
+  },
+  
+  // NEW: Socio-Economic Profile for HERA (Health Economics & Resource Agent)
+  socioEconomic: {
+    insuranceTier: {
+      type: String,
+      enum: ['Uninsured', 'Medicaid', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Medicare'],
+      default: 'Silver'
+    },
+    monthlyMedicationBudget: { type: Number, default: 150 },  // USD
+    copayTolerance: {
+      type: String,
+      enum: ['$0-10', '$10-25', '$25-50', '$50-100', '$100+'],
+      default: '$25-50'
+    },
+    location: {
+      type: String,
+      enum: ['Urban', 'Suburban', 'Rural', 'Remote'],
+      default: 'Urban'
+    },
+    transportationAccess: {
+      type: String,
+      enum: ['Own Vehicle', 'Public Transit', 'Ride Share Only', 'Limited', 'None'],
+      default: 'Own Vehicle'
+    },
+    workScheduleFlexibility: {
+      type: String,
+      enum: ['Flexible', 'Limited', 'Fixed Hours', 'Multiple Jobs', 'Unemployed', 'Retired'],
+      default: 'Limited'
+    },
+    caregiverSupport: { type: Boolean, default: false },
+    distanceToClinic: { type: Number, default: 10 },  // miles
+    pharmacyAccess: {
+      type: String,
+      enum: ['Mail Order', 'Local Pharmacy', 'Hospital Only', 'Limited'],
+      default: 'Local Pharmacy'
+    }
   }
   
 }, { timestamps: true });

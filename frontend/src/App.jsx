@@ -7,6 +7,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const PatientDashboard = lazy(() => import('./pages/PatientDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const PatientForm = lazy(() => import('./components/PatientForm'));
+const NegotiationPage = lazy(() => import('./pages/NegotiationPage'));
+const ConsensusWorkspace = lazy(() => import('./pages/ConsensusWorkspace'));
 
 const RouteLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-[#07111f] text-slate-100">
@@ -375,6 +377,24 @@ function App() {
             <Route path="/dashboard/:id/:section" element={
               <ProtectedRoute role={role}>
                 <RoleDashboard role={role} onLogout={handleLogout} />
+              </ProtectedRoute>
+            } />
+            <Route path="/negotiate/:id" element={
+              <ProtectedRoute role={role}>
+                {role === 'patient' ? (
+                  <Navigate to="/" replace />
+                ) : (
+                  <NegotiationPage />
+                )}
+              </ProtectedRoute>
+            } />
+            <Route path="/consensus/:id" element={
+              <ProtectedRoute role={role}>
+                {role === 'patient' ? (
+                  <Navigate to="/" replace />
+                ) : (
+                  <ConsensusWorkspace />
+                )}
               </ProtectedRoute>
             } />
           </Routes>
