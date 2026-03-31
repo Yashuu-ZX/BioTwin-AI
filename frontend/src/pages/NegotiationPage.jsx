@@ -16,8 +16,8 @@ import {
 } from 'lucide-react';
 import apiClient, { 
   startNegotiation, 
-  injectIntervention, 
-  getNegotiationState 
+  injectIntervention
+  // getNegotiationState - reserved for future polling implementation
 } from '../api/apiClient';
 import useAgentTelemetry from '../hooks/useAgentTelemetry';
 import GlassBoxTerminal from '../components/GlassBoxTerminal';
@@ -121,7 +121,7 @@ function AgentNetwork({ activeAgent, proposals, status }) {
 }
 
 // Session stats panel
-function SessionStats({ events, sessionId, roundNumber, status }) {
+function SessionStats({ events, roundNumber }) {
   const proposalCount = events.filter(e => e.type === 'agent_proposal').length;
   const vetoCount = events.filter(e => e.type === 'veto_issued').length;
   const interventionCount = events.filter(e => e.type === 'intervention_received').length;
@@ -451,9 +451,7 @@ export default function NegotiationPage() {
             {/* Session Stats */}
             <SessionStats
               events={events}
-              sessionId={sessionId}
               roundNumber={roundNumber}
-              status={status}
             />
 
             {/* HITL Intervention Panel */}

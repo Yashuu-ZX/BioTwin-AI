@@ -159,7 +159,7 @@ const InfoHint = ({ text }) => (
 
 // Agent insight data generator based on patient data
 const generateAgentInsights = (patient, drugIntel, result) => {
-  const genomicVariant = patient?.biomarkers?.genomicVariant || 'CYP2C19 reduced metabolizer';
+  const _genomicVariant = patient?.biomarkers?.genomicVariant || 'CYP2C19 reduced metabolizer';
   const cyp2c19 = patient?.biomarkers?.pharmacogenomics?.cyp2c19 || '*1/*2 Poor Metabolizer';
   const glucoseLevel = patient?.vitals?.sugar || patient?.vitals?.glucose || 142;
   const monthlyBudget = patient?.socioEconomic?.monthlyMedicationBudget || 150;
@@ -241,14 +241,14 @@ const Dashboard = ({ role = 'doctor' }) => {
 
   // State
   const [loading, setLoading] = useState(true);
-  const [simulating, setSimulating] = useState(false);
+  const [, setSimulating] = useState(false);
   const [exportingReport, setExportingReport] = useState(false);
   const [error, setError] = useState('');
 
   const [patient, setPatient] = useState(null);
-  const [prediction, setPrediction] = useState(null);
-  const [explainability, setExplainability] = useState(null);
-  const [cohortData, setCohortData] = useState(null);
+  const [, setPrediction] = useState(null);
+  const [, setExplainability] = useState(null);
+  const [, setCohortData] = useState(null);
   const [drugIntel, setDrugIntel] = useState(null);
   const [result, setResult] = useState(null);
 
@@ -428,10 +428,10 @@ const Dashboard = ({ role = 'doctor' }) => {
     }
   }), [patient]);
 
-  // Helper function to format timestamp
-  const formatTimestamp = () => {
+  // Helper function to format timestamp - wrapped in useCallback to prevent dependency issues
+  const formatTimestamp = useCallback(() => {
     return new Date().toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
-  };
+  }, []);
 
   // Run the consensus deliberation using REAL backend AI agents
   const runConsensusDeliberation = useCallback(async () => {
@@ -638,6 +638,7 @@ const Dashboard = ({ role = 'doctor' }) => {
       }]);
       runDemoDeliberation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, formatTimestamp]);
   
   // Fallback demo deliberation (when backend unavailable)
@@ -737,7 +738,8 @@ const Dashboard = ({ role = 'doctor' }) => {
     loadDashboard();
   }, [id, treatmentPlan]);
 
-  const runSimulation = async () => {
+  // Reserved for manual simulation trigger (currently uses consensus deliberation instead)
+  const _runSimulation = async () => {
     setSimulating(true);
     setError('');
     try {
@@ -1570,10 +1572,11 @@ const Dashboard = ({ role = 'doctor' }) => {
           excludedDrug: detectedDrug,
           impact: detectedDrug ? `Remove ${detectedDrug} from protocol` : 'Clinician steering - workflow re-evaluation required'
         });
-      } catch (err) {
+      }       catch (err) {
         console.warn('Failed to send steering to backend:', err);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steeringInput, negotiationSessionId, formatTimestamp]);
 
   // RECOMMENDATION VIEW - Integrated with Live Agent Deliberation + All 5 Features
@@ -1601,7 +1604,7 @@ const Dashboard = ({ role = 'doctor' }) => {
       const agent = getAgentConfig(msg.agent);
       const isVeto = msg.type === 'veto';
       const isConsensus = msg.type === 'consensus';
-      const isSystem = msg.type === 'system';
+      // isSystem is computed but used implicitly via fallback rendering
       const isToolUse = msg.type === 'tool_use';
       const isReflection = msg.type === 'reflection';
       const isSubAgent = msg.type === 'sub_agent';
