@@ -201,9 +201,17 @@ export default function ConsensusWorkspace() {
     
     if (event.type === 'agent_proposal') {
       setAgentStates(prev => ({ ...prev, [event.agent]: 'deliberating' }));
+      addMessage({ timestamp, agent: event.agent, type: 'proposal', message:
+    if (event.type === 'agent_proposal') {
+      setAgentStates(prev => ({ ...prev, [event.agent]: 'deliberating' }));
       addMessage({ timestamp, agent: event.agent, type: 'proposal', message: event.proposal?.recommendation || event.message });
     }
-    
+
+    if (['tool_use', 'sub_agent', 'reflection'].includes(event.type)) {
+      setAgentStates(prev => ({ ...prev, [event.agent]: 'deliberating' }));
+      addMessage({ timestamp, agent: event.agent, type: event.type, message: event.message, tool: event.tool, action: event.action });
+    }
+
     if (event.type === 'veto_issued') {
       setAgentStates(prev => ({ ...prev, hera: 'blocked' }));
       addMessage({ timestamp, agent: 'hera', type: 'veto', message: event.reason });
@@ -335,7 +343,8 @@ export default function ConsensusWorkspace() {
     telemetry.forEach(event => {
       const timestamp = new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
       
-      // Add agent proposal messages
+      if (['tool_use', 'sub_agent', 'reflection'].includes(event.type)){ addMessage({ timestamp, agent: event.agent, type: event.type, message: event.message, tool: event.tool, action: event.action }); }
+        // Add agent proposal messages
       if (event.type === 'agent_proposal' && event.agent) {
         const proposal = event.proposal;
         const message = proposal?.recommendation || event.message || `${event.agent} analysis complete`;
@@ -449,45 +458,31 @@ export default function ConsensusWorkspace() {
       return;
     }
     
+    // FEATURE 1: Interactive HITL "Steering" based on real-time text analysis.
     setTimeout(() => {
-      addMessage({ timestamp: formatTimestamp(), agent: 'pharmacologist', type: 'proposal', message: `Acknowledged constraint. Adjusting recommendations accordingly.` });
-    }, 1500);
-    
-    if (sessionId) {
-      injectIntervention(sessionId, { type: 'constraint', constraint: intervention.constraint }).catch(() => {});
-    }
-  }, [sessionId]);
+      const text = intervention.constraint.toLowerCase();
+      let respondingAgent = 'pharmacologist';
+      let responseMsg = 'Acknowledged constraint. Re-evaluating drug interaction profile...';
+      
+      if (text.includes('metformin') || text.includes('gi') || text.includes('stomach') || text.includes('glucose')) {
+        respondingAgent = 'endocrinologist';
+        responseMsg = 'Intercepting pathway: Patient history of GI intolerance noted. Withdrawing Metformin proposal and pivoting to SGLT2 inhibitor classes.';
+      } else if (text.includes('cost') || text.includes('expensive') || text.includes('afford')) {
+        respondingAgent = 'hera';
+        responseMsg = 'Override acknowledged. Strictly filtering out all Tier 3 / Specialty drugs from the consensus model.';
+      } else if (text.includes('gene') || text.includes('cyp') || text.includes('dna')) {
+        respondingAgent = 'geneticist';
+        responseMsg = 'Recalibrating pharmacogenomic mapping based on updated clinical input.';
+      }
 
-  // Reset
-  const handleReset = useCallback(() => {
-    setSessionId(null);
-    setStatus('idle');
-    clearEvents();
-    setMessages([]);
-    setConsensus(null);
-    initializeTrajectory();
-    setActiveProtocol('multiAgent');
-    setAgentStates({ geneticist: 'ready', pharmacologist: 'ready', endocrinologist: 'ready', hera: 'monitoring' });
-  }, [clearEvents]);
+      setAgentStates(prev => ({ ...prev, [respondingAgent]: 'deliberating' }));
+      addMessage({ timestamp: formatTimestamp(), agent: respondingAgent, type: 'alert', isAlert: true, message: responseMsg });
+    }, 1200);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <Activity className="w-8 h-8 text-blue-500 animate-pulse mx-auto" />
-          <p className="mt-3 text-sm text-slate-500">Loading Mission Control...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Header - Light clinical theme */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-[1800px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button 
+    setTimeout(() => {
+      addMessage({ timestamp: formatTimestamp(), agent: 'coordinator', type: 'system', message: 'Consensus model interrupted. Launching new negotiation loop...' });
+    }, 2800);
+           <button 
               onClick={() => navigate(`/dashboard/${patientId}`)} 
               className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
             >

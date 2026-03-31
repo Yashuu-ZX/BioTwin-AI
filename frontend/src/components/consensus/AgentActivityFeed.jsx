@@ -94,6 +94,12 @@ const MESSAGE_TYPES = {
 };
 
 export default function AgentActivityFeed({ messages, status }) {
+  const feedRef = useRe  tool_use: { icon: FlaskConical, accentColor: '#0ea5e9' },
+  reflection: { icon: Info, accentColor: '#8b5cf6' },
+  sub_agent: { icon: Zap, accentColor: '#a855f7' },
+};
+
+export default function AgentActivityFeed({ messages, status }) {
   const feedRef = useRef(null);
   const [displayedMessages, setDisplayedMessages] = useState([]);
   const [flashingAlert, setFlashingAlert] = useState(false);
@@ -201,6 +207,9 @@ function MessageCard({ message }) {
   const isIntervention = message.type === 'intervention';
   const isAlert = message.type === 'alert' || message.isAlert;
   const isResearch = message.type === 'research';
+  const isToolUse = message.type === 'tool_use';
+  const isReflection = message.type === 'reflection';
+  const isSubAgent = message.type === 'sub_agent';
 
   // Alert messages get dramatic red styling
   if (isAlert) {
@@ -245,13 +254,71 @@ function MessageCard({ message }) {
     );
   }
 
+  // Tool Use Action
+  if (isToolUse) {
+    return (
+      <div className="rounded-xl p-4 bg-sky-50 border border-sky-200">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-sky-100 border-2 border-sky-400 flex items-center justify-center text-sky-600">
+            <FlaskConical className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold text-sky-800">{agent.name} is using a tool</span>
+            <div className="text-xs font-mono text-sky-600 mt-1 bg-sky-100/50 px-2 py-1 rounded inline-block">
+              &gt; {message.tool} ({message.action})
+            </div>
+          </div>
+          <span className="text-xs text-sky-500 ml-auto">{message.timestamp}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Sub Agent Action
+  if (isSubAgent) {
+    return (
+      <div className="rounded-xl p-4 bg-fuchsia-50 border-l-4 border-fuchsia-400">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-6 rounded-full bg-fuchsia-200 flex items-center justify-center">
+            <Zap className="w-3 h-3 text-fuchsia-600" />
+          </div>
+          <span className="text-sm font-bold text-fuchsia-700">SUB-AGENT SUMMONED</span>
+          <span className="text-xs text-fuchsia-500 ml-auto">{message.timestamp}</span>
+        </div>
+        <p className="text-sm text-fuchsia-800 font-medium pl-8 italic">
+          "{message.message}"
+        </p>
+      </div>
+    );
+  }
+
+  // Reflection / Memory Action
+  if (isReflection) {
+    return (
+      <div className="rounded-xl p-4 bg-slate-50 border-l-4 border-slate-400 border-dashed">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 flex-shrink-0" style={{ backgroundColor: agent.bgColor, borderColor: agent.borderColor }}>
+            {agent.emoji}
+          </div>
+          <span className="text-sm font-semibold text-slate-700">{agent.name} <span className="text-slate-500 font-normal italic">accessed memory</span></span>
+          <span className="text-xs text-slate-400 ml-auto">{message.timestamp}</span>
+        </div>
+        <div className="pl-11">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-600 mb-1">
+            <Info className="w-3 h-3" />
+            Previous Case Reflection
+          </div>
+          <p className="text-sm text-slate-600 italic">
+            "{message.message}"
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div 
-      className={`
-        rounded-xl p-4 transition-all duration-300 animate-slideIn
-        ${isVeto ? 'bg-red-50 border-l-4 border-red-400' : ''}
-        ${isConsensus ? 'bg-emerald-50 border-l-4 border-emerald-400' : ''}
-        ${isIntervention ? 'bg-amber-50 border-l-4 border-amber-400' : ''}
+    <div
+ ? 'bg-amber-50 border-l-4 border-amber-400' : ''}
         ${!isVeto && !isConsensus && !isIntervention ? 'bg-white border border-slate-200 shadow-sm' : ''}
       `}
     >

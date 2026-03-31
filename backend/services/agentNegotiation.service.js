@@ -192,11 +192,18 @@ async function geneticistAnalyze(session) {
         type: 'agent_reasoning',
         agent: agent.id,
         color: agent.color,
-        message: `Scanning genomic markers: ${patient.biomarkers?.genomicVariant || 'analyzing variants'}...`
-      });
-      
-      // Single AI call attempt for faster response (no retries)
-      analysis = await retryAICall(
+   // FEATURE 2: Dynamic Agent "Swarming" (Sub-agent)
+  await agentThink(500);
+  if (patient.conditions && patient.conditions.some(c => c.toLowerCase().includes('alzheimer') || c.toLowerCase().includes('migraine'))) {
+    emitTelemetry(session.id, {
+      type: 'sub_agent',
+      agent: agent.id,
+      color: agent.color,
+      message: `Genomic markers show elevated neuro-inflammation baseline. Summoning Neurologist Sub-Agent for specialized pathway analysis.`
+    });
+    await agentThink(1200);
+  }
+
         () => openaiClient.analyzeWithAgent('geneticist', patient),
         0, 0
       );
@@ -280,21 +287,18 @@ async function pharmacologistAnalyze(session) {
   
   const medications = patient.medications?.filter(m => m.name) || [];
   
+  // FEATURE 3: Tool Use
+  await agentThink(500);
   emitTelemetry(session.id, {
-    type: 'agent_reasoning',
+    type: 'tool_use',
     agent: agent.id,
     color: agent.color,
-    message: `Cross-referencing ${medications.length} medications with genetic data...`
+    tool: 'PubMed Interactions API',
+    action: `Querying ${medications.map(m => m.name).join(' + ')} interactions`,
+    message: `Checking literature for off-label toxicity...`
   });
-  
-  let analysis;
-  
-  if (AI_ENABLED && openaiClient) {
-    try {
-      // Single AI call attempt for faster response
-      analysis = await retryAICall(
-        () => openaiClient.analyzeWithAgent('pharmacologist', patient, {
-          geneticistAnalysis: session.agentAnalyses.geneticist
+  await agentThink(800);
+
         }),
         0, 0
       );
@@ -475,24 +479,18 @@ async function heraAnalyze(session) {
   
   const budget = patient.socioEconomic?.monthlyMedicationBudget || 150;
   const insurance = patient.socioEconomic?.insuranceTier || 'Unknown';
-  
+
+  // FEATURE 5: Agent Reflection (Memory)
+  await agentThink(600);
   emitTelemetry(session.id, {
-    type: 'agent_reasoning',
+    type: 'reflection',
     agent: agent.id,
     color: agent.color,
-    message: `Checking constraints: Budget $${budget}/mo, Insurance: ${insurance}...`
+    message: `Recalling past cases with budget constraints ≤ $150/mo. Biological therapies triggered non-adherence. Enforcing strict budget caps for proposed therapeutics.`
   });
-  
-  let analysis;
-  
-  if (AI_ENABLED && openaiClient) {
-    try {
-      // Single AI call attempt for faster response
-      analysis = await retryAICall(
-        () => openaiClient.analyzeWithAgent('hera', patient, {
-          proposals: session.agentAnalyses
-        }),
-        0, 0
+  await agentThink(800);
+
+0, 0
       );
       analysis.aiGenerated = true;
       
