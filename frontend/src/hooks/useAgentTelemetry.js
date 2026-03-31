@@ -18,6 +18,7 @@ export function useAgentTelemetry(sessionId, options = {}) {
   const wsRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const reconnectTimeout = useRef(null);
+  const connectRef = useRef(null);
   
   const { autoConnect = true, onEvent, onConnect, onDisconnect } = options;
 
@@ -87,11 +88,13 @@ export function useAgentTelemetry(sessionId, options = {}) {
         
         onDisconnect?.();
         
-        // Attempt reconnection
+        // Attempt reconnection using ref to avoid temporal dead zone
         if (reconnectAttempts.current < WS_MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts.current++;
           console.log(`[Telemetry] Reconnecting (${reconnectAttempts.current}/${WS_MAX_RECONNECT_ATTEMPTS})...`);
-          reconnectTimeout.current = setTimeout(connect, WS_RECONNECT_DELAY);
+          reconnectTimeout.current = setTimeout(() => {
+            connectRef.current?.();
+          }, WS_RECONNECT_DELAY);
         } else {
           setConnectionError('Max reconnection attempts reached');
         }
@@ -107,6 +110,11 @@ export function useAgentTelemetry(sessionId, options = {}) {
       setConnectionError(err.message);
     }
   }, [getWsUrl, sessionId, onConnect, onDisconnect, onEvent]);
+  
+  // Keep connectRef in sync with connect function
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {

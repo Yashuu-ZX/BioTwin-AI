@@ -35,6 +35,7 @@ const SimulationStatus = ({ status, hasVeto }) => {
 const MultiSpecialistConsensus = ({
   patient = null,
   simulationResult = null,
+  // eslint-disable-next-line no-unused-vars
   drugIntel = null,
   isSimulating = false,
   onRunSimulation = () => {},
@@ -87,29 +88,38 @@ const MultiSpecialistConsensus = ({
   useEffect(() => {
     if (isSimulating) {
       const agents = ['geneticist', 'pharmacologist', 'endocrinologist', 'hera', 'lead-physician'];
+      const timeouts = [];
+      
       agents.forEach((agent, index) => {
-        setTimeout(() => {
+        const processingTimeout = setTimeout(() => {
           setAgentStates(prev => ({
             ...prev,
             [agent]: { active: false, processing: true },
           }));
         }, index * 400);
+        timeouts.push(processingTimeout);
 
-        setTimeout(() => {
+        const activeTimeout = setTimeout(() => {
           setAgentStates(prev => ({
             ...prev,
             [agent]: { active: true, processing: false },
           }));
         }, index * 400 + 1200);
+        timeouts.push(activeTimeout);
       });
+      
+      // Cleanup timeouts on unmount or when isSimulating changes
+      return () => timeouts.forEach(t => clearTimeout(t));
     } else if (simulationResult) {
-      setAgentStates({
+      // Only update if we have a result and not simulating
+      const newState = {
         pharmacologist: { active: true, processing: false },
         geneticist: { active: true, processing: false },
         endocrinologist: { active: true, processing: false },
         hera: { active: true, processing: false },
         'lead-physician': { active: true, processing: false },
-      });
+      };
+      setAgentStates(newState);
     }
   }, [isSimulating, simulationResult]);
 

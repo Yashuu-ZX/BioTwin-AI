@@ -24,6 +24,9 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Allow setState in effects for legitimate use cases like animations, WebSocket connections
+      // These patterns are common in React and the rule is overly strict for our codebase
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

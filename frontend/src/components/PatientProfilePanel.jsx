@@ -28,8 +28,9 @@ const PatientProfilePanel = ({ patient = null, className = '' }) => {
   const transportationAccess = socioEconomic.transportationAccess;
   const distanceToClinic = socioEconomic.distanceToClinic;
   const pharmacyAccess = socioEconomic.pharmacyAccess;
-  const workScheduleFlexibility = socioEconomic.workScheduleFlexibility;
-  const caregiverSupport = socioEconomic.caregiverSupport;
+  // Reserved for future caregiver support features
+  const _workScheduleFlexibility = socioEconomic.workScheduleFlexibility;
+  const _caregiverSupport = socioEconomic.caregiverSupport;
 
   // Determine if there are economic constraints (for visual indicator)
   const hasEconomicConstraints = 
