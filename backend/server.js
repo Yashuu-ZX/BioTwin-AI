@@ -69,17 +69,46 @@ app.use('/api', apiLimiter);
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
   : (process.env.NODE_ENV === 'production' 
-      ? ['https://biotwin-azure.com', 'https://hospital-intranet.gov'] 
+      ? [
+          'https://biotwin-azure.com', 
+          'https://hospital-intranet.gov',
+          // Vercel deployments
+          'https://biotwin.vercel.app',
+          'https://biotwin-ai.vercel.app',
+          'https://bio-twin.vercel.app',
+          'https://bio-twin-ai.vercel.app'
+        ] 
       : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']);
 
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? allowedOrigins 
-    : true, // Allow all origins in development
+// Dynamic CORS check for Vercel preview deployments
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check static allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow any Vercel preview deployment
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
   maxAge: 86400 // Cache preflight for 24 hours
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Body parser with size limits
 app.use(express.json({ limit: '10mb' }));
