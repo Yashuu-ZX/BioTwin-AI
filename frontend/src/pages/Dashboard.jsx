@@ -23,8 +23,13 @@ import {
   Clock,
   AlertOctagon,
   FlaskConical,
+  Database,
+  Search,
+  Brain,
+  RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
-import apiClient, { startNegotiationSync } from '../api/apiClient';
+import apiClient, { startNegotiationSync, injectIntervention } from '../api/apiClient';
 import PatientProfilePanel from '../components/PatientProfilePanel';
 import OutcomeTrajectoryChart from '../components/OutcomeTrajectoryChart';
 
@@ -254,6 +259,58 @@ const Dashboard = ({ role = 'doctor' }) => {
   const [deliberationMessages, setDeliberationMessages] = useState([]);
   const [consensusResult, setConsensusResult] = useState(null);
   const feedRef = useRef(null);
+  
+  // HITL Steering state - moved here for useEffect access
+  const [excludedMedications, setExcludedMedications] = useState([]);
+  const consensusResultRef = useRef(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    consensusResultRef.current = consensusResult;
+  }, [consensusResult]);
+
+  // CRITICAL: useEffect to update consensusResult when medications are excluded via steering
+  // Runs when EITHER excludedMedications OR consensusResult changes to handle timing issues
+  useEffect(() => {
+    if (excludedMedications.length === 0) return;
+    if (!consensusResult) {
+      console.log('[Steering Effect] No consensus result yet');
+      return;
+    }
+    
+    // Check if any excluded medication is STILL in the current result
+    const currentMeds = consensusResult.medications || [];
+    const medsStillPresent = currentMeds.filter(med => 
+      excludedMedications.some(excluded => 
+        med.name.toLowerCase().includes(excluded.toLowerCase())
+      )
+    );
+    
+    // Only update if there are medications that should be removed but aren't yet
+    if (medsStillPresent.length > 0) {
+      console.log('[Steering Effect] Found excluded medications still in result:', medsStillPresent.map(m => m.name));
+      console.log('[Steering Effect] Excluded list:', excludedMedications);
+      
+      const updatedMedications = currentMeds.filter(med => 
+        !excludedMedications.some(excluded => 
+          med.name.toLowerCase().includes(excluded.toLowerCase())
+        )
+      );
+      
+      console.log('[Steering Effect] Updated medications list:', updatedMedications.map(m => m.name));
+      
+      // Create the updated result
+      const excludedNames = medsStillPresent.map(m => m.name).join(', ');
+      const updatedResult = {
+        ...consensusResult,
+        medications: updatedMedications,
+        hasVeto: true,
+        reasoning: consensusResult.reasoning + (consensusResult.reasoning.includes('NOTE:') ? '' : ` NOTE: ${excludedNames} withdrawn per clinician steering.`)
+      };
+      
+      setConsensusResult(updatedResult);
+    }
+  }, [excludedMedications, consensusResult]);
 
   // Demo agent deliberation responses
   const DEMO_RESPONSES = useMemo(() => {
@@ -269,20 +326,70 @@ const Dashboard = ({ role = 'doctor' }) => {
         type: 'system',
         message: 'Initializing multi-agent consensus protocol...' 
       },
+      // FEATURE 5: Memory/Reflection - Geneticist recalls past case
+      {
+        agent: 'geneticist',
+        type: 'reflection',
+        message: `Recalling similar case #PT-2847: CYP2C19 poor metabolizer with T2DM. Clopidogrel required 150% dose adjustment. Outcome: Successful with no adverse events.`
+      },
+      // FEATURE 3: Tool Use - PharmGKB query
+      {
+        agent: 'geneticist',
+        type: 'tool_use',
+        tool: 'PharmGKB',
+        action: `Querying CYP2C19 variant guidelines for ${cyp2c19}...`
+      },
       { 
         agent: 'geneticist', 
         type: 'proposal',
         message: `Analyzing pharmacogenomic profile. ${cyp2c19} genotype confirmed - patient is an Intermediate/Poor Metabolizer. This affects ~15% of common medications including PPIs, antidepressants, and antiplatelets.` 
+      },
+      // FEATURE 3: Tool Use - DrugBank query
+      {
+        agent: 'pharmacologist',
+        type: 'tool_use',
+        tool: 'DrugBank',
+        action: `Cross-referencing drug interactions for ${medications.length > 0 ? medications.map(m => m.name).join(', ') : 'Metformin, Lisinopril'}...`
       },
       { 
         agent: 'pharmacologist', 
         type: 'proposal',
         message: `Cross-referencing current medications (${medications.length > 0 ? medications.map(m => m.name).join(', ') : 'Metformin, Lisinopril'}) with genetic data. WARNING: Standard Clopidogrel dosing poses efficacy concerns. Recommending Ticagrelor or dose adjustment.` 
       },
+      // FEATURE 2: Sub-Agent Spawning - Complex case triggers specialist
+      {
+        agent: 'pharmacologist',
+        type: 'sub_agent',
+        subAgentName: 'Cardiology Specialist',
+        subAgentEmoji: '❤️',
+        message: 'Case complexity detected: Summoning Cardiology Specialist for antiplatelet therapy evaluation.'
+      },
+      // FEATURE 2: Sub-Agent Response
+      {
+        agent: 'cardiologist',
+        type: 'sub_agent_response',
+        agentName: 'Cardiology Specialist',
+        message: 'Antiplatelet evaluation complete. Given CYP2C19 poor metabolizer status, Ticagrelor is preferred over Clopidogrel. No additional cardiac workup needed at this time.',
+        recommendations: ['Prefer Ticagrelor over Clopidogrel', 'Monitor for bleeding risk'],
+        color: '#ec4899'
+      },
+      // FEATURE 3: Tool Use - PubMed query
+      {
+        agent: 'endocrinologist',
+        type: 'tool_use',
+        tool: 'PubMed',
+        action: `Searching recent SGLT2 inhibitor trials for T2DM with HbA1c ${hba1c}...`
+      },
       { 
         agent: 'endocrinologist', 
         type: 'proposal',
         message: `HbA1c ${hba1c} indicates ${parseFloat(hba1c) > 7 ? 'suboptimal glycemic control' : 'adequate control'}. Fasting glucose ${glucose} mg/dL. ${parseFloat(hba1c) > 7 ? 'Evaluating SGLT2 inhibitor for cardiovascular co-benefit.' : 'Current management adequate.'}` 
+      },
+      // FEATURE 5: Memory/Reflection - HERA recalls budget outcome
+      {
+        agent: 'hera',
+        type: 'reflection',
+        message: `Memory: Similar patient with $${budget}/mo budget had 40% non-adherence rate when prescribed >$100/mo medications. Enforcing strict budget compliance.`
       },
       { 
         agent: 'hera', 
@@ -345,18 +452,95 @@ const Dashboard = ({ role = 'doctor' }) => {
       // Call the real backend API for AI-powered agent negotiation
       const response = await startNegotiationSync(id);
       
+      // Store session ID for HITL steering interventions
+      if (response.session?.sessionId) {
+        setNegotiationSessionId(response.session.sessionId);
+      }
+      
       if (response.success && response.telemetry) {
-        // Process telemetry into deliberation messages
+        // Process telemetry into deliberation messages - ENHANCED for all 5 features
         const messages = [];
         
         for (const event of response.telemetry) {
-          // Map telemetry event types to display messages
-          if (event.type === 'agent_start' || event.type === 'agent_reasoning' || 
+          const agentId = event.agent || 'system';
+          const baseTimestamp = event.timestamp 
+            ? new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' })
+            : formatTimestamp();
+          
+          // FEATURE 3: Tool Use Events (Live Tool-Use Overlay)
+          if (event.type === 'tool_use' || event.type === 'api_query' || event.type === 'database_query') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: agentId,
+              type: 'tool_use',
+              tool: event.tool || event.database || 'External API',
+              action: event.action || event.query || event.message,
+              timestamp: baseTimestamp
+            });
+          }
+          // FEATURE 2: Sub-Agent Spawning (Dynamic Agent Swarming)
+          else if (event.type === 'sub_agent_spawn' || event.type === 'specialist_summon') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: agentId,
+              type: 'sub_agent',
+              subAgentName: event.subAgentName || event.specialistName || 'Specialist',
+              subAgentEmoji: event.emoji || '🔬',
+              message: event.message || `Summoning ${event.subAgentName || 'specialist'} for complex analysis`,
+              timestamp: baseTimestamp
+            });
+          }
+          // FEATURE 2: Sub-Agent Response
+          else if (event.type === 'sub_agent_response' || event.type === 'specialist_response') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: agentId,
+              type: 'sub_agent_response',
+              agentName: event.agentName || event.subAgentName || 'Specialist',
+              message: event.message,
+              recommendations: event.recommendations || [],
+              color: event.color,
+              timestamp: baseTimestamp
+            });
+          }
+          // FEATURE 5: Memory & Reflection Events
+          else if (event.type === 'reflection' || event.type === 'memory_recall' || event.type === 'past_case') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: agentId,
+              type: 'reflection',
+              message: event.message || event.memory || 'Recalling similar case from memory...',
+              caseId: event.caseId,
+              timestamp: baseTimestamp
+            });
+          }
+          // FEATURE 1: Steering acknowledgment from agents
+          else if (event.type === 'steering_acknowledgment' || event.type === 'constraint_acknowledged') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: agentId,
+              type: 'steering_acknowledgment',
+              message: event.message,
+              isFlashing: true,
+              timestamp: baseTimestamp
+            });
+          }
+          // Renegotiation triggered
+          else if (event.type === 'renegotiation_triggered' || event.type === 'renegotiation') {
+            messages.push({
+              id: event.timestamp || Date.now() + Math.random(),
+              agent: 'system',
+              type: 'renegotiation_triggered',
+              message: event.message || 'Re-negotiation triggered based on new constraints...',
+              timestamp: baseTimestamp
+            });
+          }
+          // Standard agent events (proposals, vetos, etc.)
+          else if (event.type === 'agent_start' || event.type === 'agent_reasoning' || 
               event.type === 'agent_insight' || event.type === 'agent_alert' ||
               event.type === 'agent_proposal' || event.type === 'agent_complete' ||
               event.type === 'agent_veto' || event.type === 'agent_approval') {
             
-            const agentId = event.agent || 'system';
             let messageType = 'proposal';
             
             if (event.type === 'agent_veto') messageType = 'veto';
@@ -368,16 +552,18 @@ const Dashboard = ({ role = 'doctor' }) => {
               agent: agentId,
               type: messageType,
               message: event.message,
-              timestamp: new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' }),
+              timestamp: baseTimestamp,
               color: event.color
             });
-          } else if (event.type === 'consensus_reached' || event.type === 'consensus_generated') {
+          } 
+          // Consensus reached
+          else if (event.type === 'consensus_reached' || event.type === 'consensus_generated') {
             messages.push({
               id: event.timestamp || Date.now() + Math.random(),
               agent: 'coordinator',
               type: 'consensus',
               message: event.message,
-              timestamp: new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' })
+              timestamp: baseTimestamp
             });
           }
         }
@@ -1217,16 +1403,192 @@ const Dashboard = ({ role = 'doctor' }) => {
     </div>
   );
 
-  // RECOMMENDATION VIEW - Integrated with Live Agent Deliberation
+  // HITL Steering state
+  const [steeringInput, setSteeringInput] = useState('');
+  const [isSteeringActive, setIsSteeringActive] = useState(false);
+  const [negotiationSessionId, setNegotiationSessionId] = useState(null);
+  // Note: excludedMedications state is declared earlier with the useEffect
+
+  // Common drug names for detection
+  const KNOWN_DRUGS = [
+    'metformin', 'gabapentin', 'lisinopril', 'atorvastatin', 'amlodipine',
+    'omeprazole', 'losartan', 'simvastatin', 'levothyroxine', 'hydrochlorothiazide',
+    'sertraline', 'clopidogrel', 'ticagrelor', 'warfarin', 'aspirin',
+    'jardiance', 'empagliflozin', 'sitagliptin', 'januvia', 'glipizide',
+    'levodopa', 'carbidopa', 'pregabalin', 'duloxetine', 'tramadol',
+    'ibuprofen', 'naproxen', 'acetaminophen', 'prednisone', 'insulin',
+    'glargine', 'lantus', 'humalog', 'novolog', 'metoprolol', 'carvedilol',
+    'furosemide', 'spironolactone', 'pantoprazole', 'esomeprazole',
+    'donepezil', 'aricept', 'memantine', 'namenda', 'topiramate', 'topamax',
+    // Respiratory/COPD medications
+    'tiotropium', 'spiriva', 'umeclidinium', 'incruse', 'aclidinium', 'tudorza',
+    'ipratropium', 'atrovent', 'glycopyrrolate', 'seebri', 'revefenacin',
+    'fluticasone', 'budesonide', 'salmeterol', 'formoterol', 'albuterol'
+  ];
+
+  // Extract drug name from text
+  const extractDrugName = (text) => {
+    const lowerText = text.toLowerCase();
+    for (const drug of KNOWN_DRUGS) {
+      if (lowerText.includes(drug)) {
+        return drug.charAt(0).toUpperCase() + drug.slice(1);
+      }
+    }
+    // Try to extract capitalized words that might be drug names
+    const words = text.split(/\s+/);
+    for (const word of words) {
+      if (word.length > 3 && /^[A-Z][a-z]+$/.test(word) && !['Patient', 'Doctor', 'Issue', 'With', 'History'].includes(word)) {
+        return word;
+      }
+    }
+    return null;
+  };
+
+  // Handle steering submission - FIXED to detect drug names and update recommendations
+  const handleSteeringSubmit = useCallback(async (e) => {
+    e.preventDefault();
+    if (!steeringInput.trim()) return;
+    
+    const constraint = steeringInput.trim();
+    setSteeringInput('');
+    setIsSteeringActive(false);
+    
+    // Add steering message to feed
+    const steeringMsg = {
+      id: Date.now(),
+      agent: 'clinician',
+      type: 'steering_intervention',
+      constraint: constraint,
+      message: constraint,
+      timestamp: formatTimestamp()
+    };
+    setDeliberationMessages(prev => [...prev, steeringMsg]);
+    
+    // Extract the drug name mentioned in the steering
+    const detectedDrug = extractDrugName(constraint);
+    const text = constraint.toLowerCase();
+    
+    // Determine the issue type
+    const hasGIIssue = text.includes('gi') || text.includes('stomach') || text.includes('gastrointestinal') || text.includes('nausea') || text.includes('digestive');
+    const hasAllergy = text.includes('allergy') || text.includes('allergic') || text.includes('reaction') || text.includes('rash');
+    const hasCostIssue = text.includes('cost') || text.includes('expensive') || text.includes('afford') || text.includes('budget');
+    const hasSideEffect = text.includes('side effect') || text.includes('intolerance') || text.includes('issue') || text.includes('problem');
+    
+    let respondingAgent = 'pharmacologist';
+    let responseMsg = '';
+    let alternativeDrug = null;
+    
+    if (detectedDrug) {
+      // Drug-specific response
+      if (hasGIIssue || hasSideEffect) {
+        respondingAgent = 'pharmacologist';
+        // Determine alternative based on the drug
+        if (detectedDrug.toLowerCase() === 'metformin') {
+          alternativeDrug = 'Sitagliptin (Januvia)';
+          responseMsg = `🚨 CRITICAL: Withdrawing ${detectedDrug} due to GI intolerance. Recommending ${alternativeDrug} as alternative - DPP-4 inhibitor with better GI tolerability profile.`;
+        } else if (detectedDrug.toLowerCase() === 'gabapentin') {
+          alternativeDrug = 'Pregabalin';
+          responseMsg = `🚨 CRITICAL: Withdrawing ${detectedDrug} due to reported GI issues. Recommending ${alternativeDrug} as alternative - similar mechanism with different GI profile. Also considering Duloxetine for neuropathic pain.`;
+        } else if (detectedDrug.toLowerCase().includes('levodopa') || detectedDrug.toLowerCase().includes('carbidopa')) {
+          alternativeDrug = 'Extended-release Carbidopa/Levodopa';
+          responseMsg = `🚨 CRITICAL: Noting GI issues with ${detectedDrug}. Recommending ${alternativeDrug} (Rytary) - extended release formulation may reduce GI side effects. Consider taking with food.`;
+        } else if (detectedDrug.toLowerCase() === 'tiotropium' || detectedDrug.toLowerCase() === 'spiriva') {
+          alternativeDrug = 'Umeclidinium (Incruse Ellipta)';
+          responseMsg = `🚨 CRITICAL: Withdrawing ${detectedDrug} due to GI intolerance. Recommending ${alternativeDrug} as alternative - LAMA with different formulation and potentially better GI tolerability. Also considering Aclidinium (Tudorza) as secondary option.`;
+        } else {
+          responseMsg = `🚨 CRITICAL: Withdrawing ${detectedDrug} from protocol due to patient intolerance. Searching for suitable alternatives...`;
+        }
+      } else if (hasAllergy) {
+        respondingAgent = 'pharmacologist';
+        responseMsg = `🚨 ALLERGY ALERT: ${detectedDrug} marked as contraindicated due to allergic reaction. Removing from all current and future recommendations. Updating patient allergy profile.`;
+      } else if (hasCostIssue) {
+        respondingAgent = 'hera';
+        responseMsg = `🛡️ BUDGET OVERRIDE: ${detectedDrug} flagged as too expensive. Searching for generic alternatives or therapeutic substitutes within budget constraints.`;
+      } else {
+        responseMsg = `⚠️ ACKNOWLEDGED: Noting clinical concern regarding ${detectedDrug}. Re-evaluating recommendation and searching for alternatives.`;
+      }
+      
+      // Add the drug to excluded list - the useEffect will handle updating consensusResult
+      console.log('[Steering] Adding to excluded medications:', detectedDrug);
+      setExcludedMedications(prev => {
+        const drugLower = detectedDrug.toLowerCase();
+        if (!prev.some(d => d.toLowerCase() === drugLower)) {
+          console.log('[Steering] New exclusion list:', [...prev, detectedDrug]);
+          return [...prev, detectedDrug];
+        }
+        return prev;
+      });
+      
+    } else {
+      // No specific drug detected - general response
+      if (hasGIIssue) {
+        respondingAgent = 'endocrinologist';
+        responseMsg = '⚠️ INTERCEPTING: Patient history of GI intolerance noted. Please specify which medication is causing issues so we can adjust the protocol.';
+      } else if (hasCostIssue) {
+        respondingAgent = 'hera';
+        responseMsg = '🛡️ CONSTRAINT OVERRIDE: Budget concern noted. Enforcing generic-first policy. Please specify any medications that are too expensive.';
+      } else if (hasAllergy) {
+        respondingAgent = 'pharmacologist';
+        responseMsg = '🚨 SAFETY FLAG: Allergy concern noted. Please specify the medication causing allergic reaction for immediate removal from protocol.';
+      } else {
+        responseMsg = 'Acknowledged constraint. Please provide more details about which medication needs adjustment.';
+      }
+    }
+    
+    // Agent acknowledgment with delay
+    setTimeout(() => {
+      setDeliberationMessages(prev => [...prev, {
+        id: Date.now(),
+        agent: respondingAgent,
+        type: 'steering_acknowledgment',
+        isFlashing: true,
+        message: responseMsg,
+        timestamp: formatTimestamp()
+      }]);
+    }, 1000);
+    
+    // Re-negotiation signal
+    setTimeout(() => {
+      setDeliberationMessages(prev => [...prev, {
+        id: Date.now(),
+        agent: 'system',
+        type: 'renegotiation_triggered',
+        message: detectedDrug 
+          ? `🔄 Protocol updated: ${detectedDrug} removed from recommendations per clinician steering.`
+          : '🔄 Re-negotiation initiated based on clinician steering...',
+        timestamp: formatTimestamp()
+      }]);
+    }, 2500);
+    
+    // Send to backend if session exists
+    if (negotiationSessionId) {
+      try {
+        await injectIntervention(negotiationSessionId, { 
+          type: 'custom', 
+          message: constraint,
+          constraint: constraint,
+          excludedDrug: detectedDrug,
+          impact: detectedDrug ? `Remove ${detectedDrug} from protocol` : 'Clinician steering - workflow re-evaluation required'
+        });
+      } catch (err) {
+        console.warn('Failed to send steering to backend:', err);
+      }
+    }
+  }, [steeringInput, negotiationSessionId, formatTimestamp]);
+
+  // RECOMMENDATION VIEW - Integrated with Live Agent Deliberation + All 5 Features
   const renderRecommendation = () => {
     // Agent avatar configurations for the feed
     const AGENT_CONFIG_FEED = {
-      geneticist: { name: 'Geneticist', emoji: '🧬', bgColor: '#f3e8ff', borderColor: '#a855f7' },
-      pharmacologist: { name: 'Pharmacologist', emoji: '💊', bgColor: '#dcfce7', borderColor: '#22c55e' },
-      endocrinologist: { name: 'Endocrinologist', emoji: '⚡', bgColor: '#fef3c7', borderColor: '#f59e0b' },
-      hera: { name: 'HERA Guardian', emoji: '🛡️', bgColor: '#cffafe', borderColor: '#06b6d4' },
-      coordinator: { name: 'Coordinator', emoji: '🎯', bgColor: '#f5f3ff', borderColor: '#8b5cf6' },
-      system: { name: 'System', emoji: '⚙️', bgColor: '#f1f5f9', borderColor: '#64748b' },
+      geneticist: { name: 'Geneticist', emoji: '🧬', bgColor: '#f3e8ff', borderColor: '#a855f7', color: '#a855f7' },
+      pharmacologist: { name: 'Pharmacologist', emoji: '💊', bgColor: '#dcfce7', borderColor: '#22c55e', color: '#22c55e' },
+      endocrinologist: { name: 'Endocrinologist', emoji: '⚡', bgColor: '#fef3c7', borderColor: '#f59e0b', color: '#f59e0b' },
+      hera: { name: 'HERA Guardian', emoji: '🛡️', bgColor: '#cffafe', borderColor: '#06b6d4', color: '#06b6d4' },
+      coordinator: { name: 'Coordinator', emoji: '🎯', bgColor: '#f5f3ff', borderColor: '#8b5cf6', color: '#8b5cf6' },
+      system: { name: 'System', emoji: '⚙️', bgColor: '#f1f5f9', borderColor: '#64748b', color: '#64748b' },
+      clinician: { name: 'You (Clinician)', emoji: '👨‍⚕️', bgColor: '#fef9c3', borderColor: '#eab308', color: '#eab308' },
+      cardiologist: { name: 'Cardiologist', emoji: '❤️', bgColor: '#fce7f3', borderColor: '#ec4899', color: '#ec4899' },
+      nephrologist: { name: 'Nephrologist', emoji: '🫘', bgColor: '#e0f2fe', borderColor: '#0ea5e9', color: '#0ea5e9' },
     };
 
     const getAgentConfig = (agentKey) => {
@@ -1234,13 +1596,195 @@ const Dashboard = ({ role = 'doctor' }) => {
       return AGENT_CONFIG_FEED[key] || AGENT_CONFIG_FEED.system;
     };
 
-    // Render a single message in the feed
+    // Render a single message in the feed - ENHANCED with all 5 features
     const renderMessage = (msg, index) => {
       const agent = getAgentConfig(msg.agent);
       const isVeto = msg.type === 'veto';
       const isConsensus = msg.type === 'consensus';
       const isSystem = msg.type === 'system';
+      const isToolUse = msg.type === 'tool_use';
+      const isReflection = msg.type === 'reflection';
+      const isSubAgent = msg.type === 'sub_agent';
+      const isSubAgentResponse = msg.type === 'sub_agent_response';
+      const isSteering = msg.type === 'steering_intervention';
+      const isSteeringAck = msg.type === 'steering_acknowledgment';
+      const isRenegotiation = msg.type === 'renegotiation_triggered';
 
+      // FEATURE 1: Steering intervention (from clinician)
+      if (isSteering) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-4 bg-amber-50 border-2 border-amber-400 animate-pulse">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-bold text-amber-700">CLINICIAN STEERING</span>
+              <span className="text-xs text-amber-500 ml-auto">{msg.timestamp}</span>
+            </div>
+            <p className="text-sm text-amber-800 font-medium pl-10 italic">
+              "{msg.constraint || msg.message}"
+            </p>
+          </div>
+        );
+      }
+
+      // FEATURE 1: Steering acknowledgment (agent response)
+      if (isSteeringAck) {
+        return (
+          <div 
+            key={msg.id || index}
+            className={`rounded-xl p-4 border-l-4 border-amber-400 ${msg.isFlashing ? 'bg-amber-100' : 'bg-amber-50'}`}
+            style={msg.isFlashing ? { animation: 'steeringGlow 1s ease-in-out infinite' } : {}}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 flex-shrink-0 animate-pulse"
+                style={{ backgroundColor: agent.bgColor, borderColor: agent.borderColor }}
+              >
+                {agent.emoji}
+              </div>
+              <span className="text-sm font-semibold text-amber-800">{agent.name}</span>
+              <span className="text-xs bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium animate-pulse">
+                ⚡ STEERING RESPONSE
+              </span>
+              <span className="text-xs text-amber-500 ml-auto">{msg.timestamp}</span>
+            </div>
+            <p className="text-sm text-amber-800 font-medium pl-11">
+              {msg.message}
+            </p>
+          </div>
+        );
+      }
+
+      // Renegotiation triggered
+      if (isRenegotiation) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-3 bg-blue-50 border border-blue-200">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+              <span className="text-sm font-medium text-blue-700">{msg.message}</span>
+            </div>
+          </div>
+        );
+      }
+
+      // FEATURE 3: Tool Use Action
+      if (isToolUse) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-4 bg-gradient-to-r from-sky-50 to-cyan-50 border border-sky-200">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-sky-100 border-2 border-sky-400 flex items-center justify-center text-sky-600 animate-pulse">
+                <Search className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-sky-800">{agent.name}</span>
+                  <span className="text-xs bg-sky-200 text-sky-700 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                    <Database className="w-3 h-3" />
+                    {msg.tool}
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-sky-600 mt-1 bg-sky-100/70 px-2 py-1 rounded inline-flex items-center gap-1">
+                  <span className="animate-pulse">🔍</span>
+                  {msg.action}
+                </div>
+              </div>
+              <span className="text-xs text-sky-500">{msg.timestamp}</span>
+            </div>
+          </div>
+        );
+      }
+
+      // FEATURE 2: Sub-Agent Summon
+      if (isSubAgent) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-4 bg-gradient-to-r from-fuchsia-50 to-pink-50 border-l-4 border-fuchsia-400">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-fuchsia-200 flex items-center justify-center animate-pulse">
+                <Sparkles className="w-3 h-3 text-fuchsia-600" />
+              </div>
+              <span className="text-sm font-bold text-fuchsia-700">🚀 SUB-AGENT SUMMONED</span>
+              {msg.subAgentName && (
+                <span className="text-xs bg-fuchsia-200 text-fuchsia-700 px-2 py-0.5 rounded-full font-medium">
+                  {msg.subAgentEmoji} {msg.subAgentName}
+                </span>
+              )}
+              <span className="text-xs text-fuchsia-500 ml-auto">{msg.timestamp}</span>
+            </div>
+            <p className="text-sm text-fuchsia-800 pl-8">
+              {msg.message}
+            </p>
+          </div>
+        );
+      }
+
+      // FEATURE 2: Sub-Agent Response
+      if (isSubAgentResponse) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-4 bg-violet-50 border border-violet-200 ml-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm border-2"
+                style={{ 
+                  backgroundColor: msg.color ? `${msg.color}20` : '#ede9fe',
+                  borderColor: msg.color || '#8b5cf6'
+                }}
+              >
+                {msg.agentName?.includes('Cardio') ? '❤️' :
+                 msg.agentName?.includes('Neuro') ? '🧠' :
+                 msg.agentName?.includes('Nephro') ? '🫘' : '👤'}
+              </div>
+              <div className="flex-1">
+                <span className="text-sm font-semibold text-violet-800">{msg.agentName || 'Specialist'}</span>
+                <span className="text-xs text-violet-500 ml-2">Sub-Agent Ruling</span>
+              </div>
+              <span className="text-xs text-violet-500">{msg.timestamp}</span>
+            </div>
+            <p className="text-sm text-violet-800 pl-11">{msg.message}</p>
+            {msg.recommendations?.length > 0 && (
+              <div className="pl-11 mt-2">
+                <p className="text-xs text-violet-600 font-medium">Recommendations:</p>
+                <ul className="text-xs text-violet-700 list-disc list-inside">
+                  {msg.recommendations.slice(0, 2).map((rec, i) => (
+                    <li key={i}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // FEATURE 5: Reflection / Memory Action
+      if (isReflection) {
+        return (
+          <div key={msg.id || index} className="rounded-xl p-4 bg-gradient-to-r from-slate-50 to-indigo-50 border-l-4 border-indigo-300 border-dashed">
+            <div className="flex items-center gap-3 mb-2">
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 flex-shrink-0" 
+                style={{ backgroundColor: agent.bgColor, borderColor: agent.borderColor }}
+              >
+                {agent.emoji}
+              </div>
+              <span className="text-sm font-semibold text-slate-700">
+                {agent.name} <span className="text-indigo-500 font-normal italic">recalled memory</span>
+              </span>
+              <span className="text-xs text-slate-400 ml-auto">{msg.timestamp}</span>
+            </div>
+            <div className="pl-11">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-600 mb-1">
+                <Brain className="w-3 h-3" />
+                💭 Past Case Learning
+              </div>
+              <p className="text-sm text-indigo-700 italic bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
+                "{msg.message}"
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      // Default message card (proposals, veto, consensus)
       return (
         <div
           key={msg.id || index}
@@ -1331,7 +1875,12 @@ const Dashboard = ({ role = 'doctor' }) => {
             {consensusResult.hasVeto && (
               <div className="flex items-center gap-3 px-3 py-2 bg-amber-100 rounded-lg mb-4">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="text-sm text-amber-800">HERA Guardian adjusted the original recommendation due to budget or safety constraints.</span>
+                <span className="text-sm text-amber-800">
+                  {excludedMedications.length > 0 
+                    ? `Protocol adjusted: ${excludedMedications.join(', ')} removed per clinician steering.`
+                    : 'Protocol adjusted due to safety, budget, or clinician constraints.'
+                  }
+                </span>
               </div>
             )}
             
@@ -1417,6 +1966,43 @@ const Dashboard = ({ role = 'doctor' }) => {
                   </div>
                 ) : (
                   deliberationMessages.map((msg, i) => renderMessage(msg, i))
+                )}
+              </div>
+
+              {/* FEATURE 1: HITL Steering Command Line */}
+              <div className={`mt-3 border-t pt-3 transition-all duration-200 ${
+                isSteeringActive ? 'bg-amber-50 border-amber-200 -mx-6 -mb-6 px-6 pb-4 rounded-b-[28px]' : 'border-slate-100'
+              }`}>
+                <form onSubmit={handleSteeringSubmit} className="flex items-center gap-2">
+                  <span className="text-amber-500 font-mono text-sm font-bold">&gt;</span>
+                  <input
+                    type="text"
+                    value={steeringInput}
+                    onChange={(e) => setSteeringInput(e.target.value)}
+                    onFocus={() => setIsSteeringActive(true)}
+                    onBlur={() => !steeringInput && setIsSteeringActive(false)}
+                    placeholder={consensusStatus === 'running' ? "Inject constraint... (e.g., 'Patient had GI issues with Metformin')" : "Start consensus to enable steering..."}
+                    disabled={consensusStatus !== 'running'}
+                    className={`flex-1 bg-transparent text-sm font-mono outline-none placeholder:text-slate-400 disabled:opacity-50 ${
+                      isSteeringActive ? 'text-amber-800' : 'text-slate-600'
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={consensusStatus !== 'running' || !steeringInput.trim()}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      steeringInput.trim() && consensusStatus === 'running'
+                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Inject
+                  </button>
+                </form>
+                {isSteeringActive && (
+                  <p className="text-xs text-amber-600 mt-2 pl-4">
+                    💡 Type a constraint to steer agents in real-time (e.g., "avoid expensive drugs", "patient is allergic to penicillin")
+                  </p>
                 )}
               </div>
 
@@ -1703,6 +2289,14 @@ const Dashboard = ({ role = 'doctor' }) => {
         @keyframes fadeSlide {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes steeringGlow {
+          0%, 100% { box-shadow: 0 0 5px rgba(251, 191, 36, 0.3); background-color: rgba(254, 243, 199, 0.5); }
+          50% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.6); background-color: rgba(254, 243, 199, 1); }
+        }
+        @keyframes pulse-ring {
+          0% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(1.5); opacity: 0; }
         }
       `}</style>
     </div>

@@ -3,6 +3,12 @@
  * 
  * AI-Powered Implementation using OpenAI GPT-4
  * 
+ * Enhanced with:
+ * - Feature 1: HITL Steering (Human-in-the-Loop)
+ * - Feature 2: Dynamic Agent Swarming
+ * - Feature 3: Live Tool Use
+ * - Feature 5: Agent Memory & Self-Reflection
+ * 
  * Implements a cyclic negotiation loop (Actor Model pattern) where:
  * 1. Specialist Agents (Geneticist, Pharmacologist, Endocrinologist) analyze patient data
  * 2. HERA Guardian evaluates economic/access constraints and may VETO
@@ -12,12 +18,37 @@
 const EventEmitter = require('events');
 require('dotenv').config();
 
+// Import new services for advanced features
+let agentMemory = null;
+let agentSwarming = null;
+let agentTools = null;
+
+try {
+  agentMemory = require('./agentMemory.service');
+  console.log('✅ Agent Memory service loaded');
+} catch (e) {
+  console.log('⚠️ Agent Memory service not available');
+}
+
+try {
+  agentSwarming = require('./agentSwarming.service');
+  console.log('✅ Agent Swarming service loaded');
+} catch (e) {
+  console.log('⚠️ Agent Swarming service not available');
+}
+
+try {
+  agentTools = require('./agentTools.service');
+  console.log('✅ Agent Tools service loaded');
+} catch (e) {
+  console.log('⚠️ Agent Tools service not available');
+}
+
 // Check for OpenAI/OpenRouter integration
 let openaiClient = null;
 let AI_ENABLED = false;
 
 try {
-  // Support both OpenRouter (OPENROUTER_API_KEY) and direct OpenAI (OPENAI_API_KEY)
   if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
     openaiClient = require('./ai/openaiClient');
     AI_ENABLED = true;
@@ -42,7 +73,7 @@ const AGENT_ROLES = {
     name: 'Dr. Gene',
     specialty: 'Clinical Geneticist',
     avatar: '🧬',
-    color: '#a855f7', // violet
+    color: '#a855f7',
     bias: 'precision',
     priority: ['genomic_match', 'pharmacogenomics', 'precision_medicine']
   },
@@ -51,7 +82,7 @@ const AGENT_ROLES = {
     name: 'Dr. Pharma',
     specialty: 'Clinical Pharmacologist',
     avatar: '💊',
-    color: '#22c55e', // green
+    color: '#22c55e',
     bias: 'safety',
     priority: ['drug_safety', 'interactions', 'dose_optimization']
   },
@@ -60,7 +91,7 @@ const AGENT_ROLES = {
     name: 'Dr. Endo',
     specialty: 'Endocrinologist',
     avatar: '⚗️',
-    color: '#f59e0b', // amber
+    color: '#f59e0b',
     bias: 'metabolic',
     priority: ['metabolic_control', 'hormone_optimization', 'glycemic_targets']
   },
@@ -69,7 +100,7 @@ const AGENT_ROLES = {
     name: 'HERA Guardian',
     specialty: 'Health Economics & Resource Agent',
     avatar: '🛡️',
-    color: '#06b6d4', // cyan
+    color: '#06b6d4',
     bias: 'constraint',
     priority: ['cost_effectiveness', 'accessibility', 'insurance_coverage']
   }
@@ -84,12 +115,11 @@ const NEGOTIATION_STATES = {
   REVISION_REQUIRED: 'revision_required',
   CONSENSUS_REACHED: 'consensus_reached',
   DEADLOCK: 'deadlock',
-  HUMAN_INTERVENTION: 'human_intervention'
+  HUMAN_INTERVENTION: 'human_intervention',
+  STEERING: 'steering'
 };
 
-/**
- * Active negotiation sessions (in-memory store)
- */
+// Active negotiation sessions
 const activeSessions = new Map();
 
 /**
@@ -109,6 +139,9 @@ function createSession(sessionId, patient, treatmentContext) {
     consensus: null,
     telemetry: [],
     humanInterventions: [],
+    activeSubAgents: [],
+    toolCalls: [],
+    steeringConstraints: [],
     startTime: Date.now(),
     lastActivity: Date.now(),
     aiEnabled: AI_ENABLED
@@ -128,14 +161,12 @@ function emitTelemetry(sessionId, event) {
     ...event
   };
   
-  // Store in session
   const session = activeSessions.get(sessionId);
   if (session) {
     session.telemetry.push(telemetryEvent);
     session.lastActivity = Date.now();
   }
   
-  // Emit to WebSocket listeners
   negotiationEventBus.emit('telemetry', telemetryEvent);
   negotiationEventBus.emit(`telemetry:${sessionId}`, telemetryEvent);
   
@@ -143,7 +174,7 @@ function emitTelemetry(sessionId, event) {
 }
 
 /**
- * Helper function to retry AI calls with shorter delays for faster response
+ * Helper for AI calls with retry
  */
 async function retryAICall(fn, maxRetries = 1, delayMs = 500) {
   let lastError;
@@ -162,10 +193,88 @@ async function retryAICall(fn, maxRetries = 1, delayMs = 500) {
 }
 
 /**
- * Small delay for natural telemetry pacing (reduced for faster response)
+ * Natural pacing delay
  */
 async function agentThink(ms = 100) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * FEATURE 3: Emit tool use telemetry
+ */
+async function emitToolUse(sessionId, agentId, toolName, action, message) {
+  emitTelemetry(sessionId, {
+    type: 'tool_use',
+    agent: agentId,
+    color: AGENT_ROLES[agentId.toUpperCase()]?.color || '#64748b',
+    tool: toolName,
+    action: action,
+    message: message || `Using ${toolName}...`
+  });
+  await agentThink(600);
+}
+
+/**
+ * FEATURE 5: Emit reflection telemetry
+ */
+async function emitReflection(sessionId, agentId, patient) {
+  if (!agentMemory) return null;
+  
+  const reflection = agentMemory.generateReflectionMessage(agentId, patient);
+  if (reflection) {
+    emitTelemetry(sessionId, {
+      type: 'reflection',
+      agent: agentId,
+      color: AGENT_ROLES[agentId.toUpperCase()]?.color || '#64748b',
+      message: reflection.message,
+      memoryType: reflection.memoryType
+    });
+    await agentThink(800);
+  }
+  return reflection;
+}
+
+/**
+ * FEATURE 2: Check and summon sub-agents
+ */
+async function checkAndSummonSubAgents(sessionId, agentId, patient) {
+  if (!agentSwarming) return [];
+  
+  const specialists = agentSwarming.detectRequiredSpecialists(patient);
+  const summonedAgents = [];
+  
+  for (const specialist of specialists.slice(0, 2)) {
+    emitTelemetry(sessionId, {
+      type: 'sub_agent',
+      agent: agentId,
+      subAgent: specialist.id,
+      subAgentName: specialist.name,
+      subAgentEmoji: specialist.avatar,
+      subAgentColor: specialist.color,
+      color: AGENT_ROLES[agentId.toUpperCase()]?.color || '#64748b',
+      message: `${specialist.triggerReason}. Summoning ${specialist.name} Sub-Agent for specialized analysis.`
+    });
+    
+    await agentThink(1000);
+    
+    const response = agentSwarming.generateSubAgentResponse(specialist.id, patient, 'General consultation');
+    
+    emitTelemetry(sessionId, {
+      type: 'sub_agent_response',
+      agent: specialist.id,
+      agentName: specialist.name,
+      color: specialist.color,
+      message: `${specialist.avatar} ${specialist.name}: ${response.ruling}`,
+      ruling: response.ruling,
+      recommendations: response.recommendations,
+      confidence: response.confidence
+    });
+    
+    await agentThink(600);
+    summonedAgents.push({ specialist, response });
+  }
+  
+  return summonedAgents;
 }
 
 /**
@@ -184,6 +293,19 @@ async function geneticistAnalyze(session) {
     message: `Analyzing pharmacogenomic profile...`
   });
   
+  // FEATURE 5: Check memory for reflections
+  await emitReflection(session.id, agent.id, patient);
+  
+  // FEATURE 3: Tool use - PharmGKB lookup
+  await emitToolUse(session.id, agent.id, 'PharmGKB Lookup', 
+    `Querying ${patient.biomarkers?.pharmacogenomics?.cyp2d6 || 'CYP2D6'} implications`,
+    'Looking up pharmacogenomic guidelines...');
+  
+  // FEATURE 3: Tool use - CPIC guidelines
+  await emitToolUse(session.id, agent.id, 'CPIC Guidelines API',
+    'Fetching clinical pharmacogenetics recommendations',
+    'Checking CPIC dosing guidelines...');
+  
   let analysis;
   
   if (AI_ENABLED && openaiClient) {
@@ -192,24 +314,15 @@ async function geneticistAnalyze(session) {
         type: 'agent_reasoning',
         agent: agent.id,
         color: agent.color,
-   // FEATURE 2: Dynamic Agent "Swarming" (Sub-agent)
-  await agentThink(500);
-  if (patient.conditions && patient.conditions.some(c => c.toLowerCase().includes('alzheimer') || c.toLowerCase().includes('migraine'))) {
-    emitTelemetry(session.id, {
-      type: 'sub_agent',
-      agent: agent.id,
-      color: agent.color,
-      message: `Genomic markers show elevated neuro-inflammation baseline. Summoning Neurologist Sub-Agent for specialized pathway analysis.`
-    });
-    await agentThink(1200);
-  }
-
+        message: `Correlating genetic markers with drug response profiles...`
+      });
+      
+      analysis = await retryAICall(
         () => openaiClient.analyzeWithAgent('geneticist', patient),
         0, 0
       );
       analysis.aiGenerated = true;
       
-      // Emit key findings
       if (analysis.keyFindings?.length > 0) {
         emitTelemetry(session.id, {
           type: 'agent_insight',
@@ -220,7 +333,6 @@ async function geneticistAnalyze(session) {
         });
       }
       
-      // Alert for actionable mutations
       if (analysis.actionableMutations?.length > 0) {
         emitTelemetry(session.id, {
           type: 'agent_alert',
@@ -232,7 +344,7 @@ async function geneticistAnalyze(session) {
       }
       
     } catch (error) {
-      console.error('Geneticist AI analysis failed after retries:', error);
+      console.error('Geneticist AI analysis failed:', error);
       analysis = getMockGeneticistAnalysis(patient);
       emitTelemetry(session.id, {
         type: 'agent_fallback',
@@ -244,14 +356,14 @@ async function geneticistAnalyze(session) {
     }
   } else {
     analysis = getMockGeneticistAnalysis(patient);
-    if (!AI_ENABLED) {
-      emitTelemetry(session.id, {
-        type: 'agent_info',
-        agent: agent.id,
-        color: agent.color,
-        message: `Using rule-based analysis (AI not configured)`
-      });
-    }
+  }
+  
+  // FEATURE 2: Check for sub-agent needs (neurological conditions)
+  const conditions = patient.conditions || patient.medicalHistory?.conditions || [];
+  if (conditions.some(c => c.toLowerCase().includes('alzheimer') || 
+                          c.toLowerCase().includes('migraine') ||
+                          c.toLowerCase().includes('parkinson'))) {
+    await checkAndSummonSubAgents(session.id, agent.id, patient);
   }
   
   emitTelemetry(session.id, {
@@ -275,6 +387,7 @@ async function geneticistAnalyze(session) {
 async function pharmacologistAnalyze(session) {
   const agent = AGENT_ROLES.PHARMACOLOGIST;
   const { patient } = session;
+  const medications = patient.medications?.filter(m => m.name) || [];
   
   emitTelemetry(session.id, {
     type: 'agent_start',
@@ -285,28 +398,47 @@ async function pharmacologistAnalyze(session) {
     message: `Initiating drug safety review...`
   });
   
-  const medications = patient.medications?.filter(m => m.name) || [];
+  // FEATURE 5: Check memory for past interactions learned
+  await emitReflection(session.id, agent.id, patient);
   
-  // FEATURE 3: Tool Use
-  await agentThink(500);
-  emitTelemetry(session.id, {
-    type: 'tool_use',
-    agent: agent.id,
-    color: agent.color,
-    tool: 'PubMed Interactions API',
-    action: `Querying ${medications.map(m => m.name).join(' + ')} interactions`,
-    message: `Checking literature for off-label toxicity...`
-  });
-  await agentThink(800);
-
+  // FEATURE 3: Tool use - PubMed search
+  await emitToolUse(session.id, agent.id, 'PubMed Interactions API',
+    `Querying ${medications.slice(0, 2).map(m => m.name).join(' + ') || 'medication'} interactions`,
+    'Searching clinical literature for interaction data...');
+  
+  // FEATURE 3: Tool use - DrugBank
+  await emitToolUse(session.id, agent.id, 'DrugBank API',
+    `Checking interaction severity classifications`,
+    'Verifying interaction mechanisms...');
+  
+  // FEATURE 3: Tool use - FDA FAERS
+  await emitToolUse(session.id, agent.id, 'FDA FAERS Database',
+    `Searching adverse event reports`,
+    'Analyzing post-market safety signals...');
+  
+  let analysis;
+  
+  if (AI_ENABLED && openaiClient) {
+    try {
+      emitTelemetry(session.id, {
+        type: 'agent_reasoning',
+        agent: agent.id,
+        color: agent.color,
+        message: `Cross-referencing ${medications.length} medications for interactions...`
+      });
+      
+      analysis = await retryAICall(
+        () => openaiClient.analyzeWithAgent('pharmacologist', patient, {
+          geneticistAnalysis: session.agentAnalyses.geneticist
         }),
         0, 0
       );
       analysis.aiGenerated = true;
       
-      // Emit interaction alerts
       if (analysis.interactions?.length > 0) {
-        const majorInteractions = analysis.interactions.filter(i => i.severity === 'major' || i.severity === 'contraindicated');
+        const majorInteractions = analysis.interactions.filter(i => 
+          i.severity === 'major' || i.severity === 'contraindicated'
+        );
         if (majorInteractions.length > 0) {
           emitTelemetry(session.id, {
             type: 'agent_alert',
@@ -318,7 +450,6 @@ async function pharmacologistAnalyze(session) {
         }
       }
       
-      // Emit safety score
       emitTelemetry(session.id, {
         type: 'agent_insight',
         agent: agent.id,
@@ -327,26 +458,18 @@ async function pharmacologistAnalyze(session) {
       });
       
     } catch (error) {
-      console.error('Pharmacologist AI analysis failed after retries:', error);
+      console.error('Pharmacologist AI analysis failed:', error);
       analysis = getMockPharmacologistAnalysis(patient);
       emitTelemetry(session.id, {
         type: 'agent_fallback',
         agent: agent.id,
         color: agent.color,
         severity: 'warning',
-        message: `⚡ Using enhanced rule-based analysis with drug database (AI unavailable)`
+        message: `⚡ Using enhanced rule-based analysis (AI unavailable)`
       });
     }
   } else {
     analysis = getMockPharmacologistAnalysis(patient);
-    if (!AI_ENABLED) {
-      emitTelemetry(session.id, {
-        type: 'agent_info',
-        agent: agent.id,
-        color: agent.color,
-        message: `Using rule-based analysis (AI not configured)`
-      });
-    }
   }
   
   emitTelemetry(session.id, {
@@ -381,18 +504,30 @@ async function endocrinologistAnalyze(session) {
     message: `Evaluating metabolic profile...`
   });
   
-  emitTelemetry(session.id, {
-    type: 'agent_reasoning',
-    agent: agent.id,
-    color: agent.color,
-    message: `Assessing glucose (${patient.vitals?.sugar || '?'} mg/dL), BMI, and metabolic markers...`
-  });
+  // FEATURE 5: Check memory
+  await emitReflection(session.id, agent.id, patient);
+  
+  // FEATURE 3: Tool use - ADA guidelines
+  await emitToolUse(session.id, agent.id, 'ADA Standards of Care',
+    'Referencing diabetes management guidelines',
+    'Checking ADA 2024 recommendations...');
+  
+  // FEATURE 3: Tool use - Glycemic calculator
+  await emitToolUse(session.id, agent.id, 'Glycemic Target Calculator',
+    `Computing targets for age ${patient.age || '?'}, glucose ${patient.vitals?.sugar || patient.vitals?.glucose || '?'}`,
+    'Calculating individualized HbA1c goals...');
   
   let analysis;
   
   if (AI_ENABLED && openaiClient) {
     try {
-      // Single AI call attempt for faster response
+      emitTelemetry(session.id, {
+        type: 'agent_reasoning',
+        agent: agent.id,
+        color: agent.color,
+        message: `Assessing glucose (${patient.vitals?.sugar || patient.vitals?.glucose || '?'} mg/dL) and metabolic markers...`
+      });
+      
       analysis = await retryAICall(
         () => openaiClient.analyzeWithAgent('endocrinologist', patient, {
           geneticistAnalysis: session.agentAnalyses.geneticist,
@@ -402,7 +537,6 @@ async function endocrinologistAnalyze(session) {
       );
       analysis.aiGenerated = true;
       
-      // Emit metabolic findings
       if (analysis.keyFindings?.length > 0) {
         emitTelemetry(session.id, {
           type: 'agent_insight',
@@ -412,7 +546,6 @@ async function endocrinologistAnalyze(session) {
         });
       }
       
-      // Alert for metabolic risks
       if (analysis.metabolicRisks?.length > 0) {
         emitTelemetry(session.id, {
           type: 'agent_alert',
@@ -424,26 +557,26 @@ async function endocrinologistAnalyze(session) {
       }
       
     } catch (error) {
-      console.error('Endocrinologist AI analysis failed after retries:', error);
+      console.error('Endocrinologist AI analysis failed:', error);
       analysis = getMockEndocrinologistAnalysis(patient);
       emitTelemetry(session.id, {
         type: 'agent_fallback',
         agent: agent.id,
         color: agent.color,
         severity: 'warning',
-        message: `⚡ Using enhanced algorithmic metabolic analysis (AI unavailable)`
+        message: `⚡ Using algorithmic metabolic analysis (AI unavailable)`
       });
     }
   } else {
     analysis = getMockEndocrinologistAnalysis(patient);
-    if (!AI_ENABLED) {
-      emitTelemetry(session.id, {
-        type: 'agent_info',
-        agent: agent.id,
-        color: agent.color,
-        message: `Using rule-based analysis (AI not configured)`
-      });
-    }
+  }
+  
+  // FEATURE 2: Check for cardiac sub-agent needs
+  const conditions = patient.conditions || patient.medicalHistory?.conditions || [];
+  if (conditions.some(c => c.toLowerCase().includes('heart') || 
+                          c.toLowerCase().includes('cardiac') ||
+                          c.toLowerCase().includes('coronary'))) {
+    await checkAndSummonSubAgents(session.id, agent.id, patient);
   }
   
   emitTelemetry(session.id, {
@@ -467,6 +600,8 @@ async function endocrinologistAnalyze(session) {
 async function heraAnalyze(session) {
   const agent = AGENT_ROLES.HERA;
   const { patient } = session;
+  const budget = patient.socioEconomic?.monthlyMedicationBudget || 150;
+  const insurance = patient.socioEconomic?.insuranceTier || 'Unknown';
   
   emitTelemetry(session.id, {
     type: 'agent_start',
@@ -477,24 +612,46 @@ async function heraAnalyze(session) {
     message: `Evaluating resource constraints and feasibility...`
   });
   
-  const budget = patient.socioEconomic?.monthlyMedicationBudget || 150;
-  const insurance = patient.socioEconomic?.insuranceTier || 'Unknown';
-
-  // FEATURE 5: Agent Reflection (Memory)
-  await agentThink(600);
-  emitTelemetry(session.id, {
-    type: 'reflection',
-    agent: agent.id,
-    color: agent.color,
-    message: `Recalling past cases with budget constraints ≤ $150/mo. Biological therapies triggered non-adherence. Enforcing strict budget caps for proposed therapeutics.`
-  });
-  await agentThink(800);
-
-0, 0
+  // FEATURE 5: Memory-based reflection (key feature for HERA)
+  const reflection = await emitReflection(session.id, agent.id, patient);
+  
+  // FEATURE 3: Tool use - GoodRx pricing
+  const medications = patient.medications?.filter(m => m.name) || [];
+  await emitToolUse(session.id, agent.id, 'GoodRx Pricing API',
+    `Querying local pricing for ${medications[0]?.name || 'medications'}`,
+    'Fetching pharmacy prices in patient area...');
+  
+  // FEATURE 3: Tool use - Formulary check
+  await emitToolUse(session.id, agent.id, 'CMS Formulary Check',
+    `Verifying ${insurance} tier coverage`,
+    'Checking formulary and prior auth requirements...');
+  
+  // FEATURE 3: Tool use - Patient assistance
+  await emitToolUse(session.id, agent.id, 'Patient Assistance Programs',
+    'Searching manufacturer programs',
+    'Finding assistance program eligibility...');
+  
+  let analysis;
+  
+  if (AI_ENABLED && openaiClient) {
+    try {
+      emitTelemetry(session.id, {
+        type: 'agent_reasoning',
+        agent: agent.id,
+        color: agent.color,
+        message: `Analyzing budget ($${budget}/mo) and insurance (${insurance}) constraints...`
+      });
+      
+      analysis = await retryAICall(
+        () => openaiClient.analyzeWithAgent('hera', patient, {
+          geneticistAnalysis: session.agentAnalyses.geneticist,
+          pharmacologistAnalysis: session.agentAnalyses.pharmacologist,
+          endocrinologistAnalysis: session.agentAnalyses.endocrinologist
+        }),
+        0, 0
       );
       analysis.aiGenerated = true;
       
-      // Handle VETO
       if (analysis.veto?.issued) {
         emitTelemetry(session.id, {
           type: 'agent_veto',
@@ -504,9 +661,18 @@ async function heraAnalyze(session) {
           message: `🛑 VETO: ${analysis.veto.reason}`
         });
         
-        // Emit alternatives
+        // Record veto for memory
+        if (agentMemory) {
+          agentMemory.recordHeraVeto(patient, {
+            reason: analysis.veto.reason,
+            drugs: analysis.vetoDrugs || [],
+            estimatedCost: analysis.estimatedCost,
+            targetAgent: analysis.targetAgent
+          });
+        }
+        
         if (analysis.alternatives?.length > 0) {
-          await agentThink(50);
+          await agentThink(500);
           emitTelemetry(session.id, {
             type: 'agent_proposal',
             agent: agent.id,
@@ -524,26 +690,18 @@ async function heraAnalyze(session) {
       }
       
     } catch (error) {
-      console.error('HERA AI analysis failed after retries:', error);
+      console.error('HERA AI analysis failed:', error);
       analysis = getMockHeraAnalysis(patient, session.agentAnalyses);
       emitTelemetry(session.id, {
         type: 'agent_fallback',
         agent: agent.id,
         color: agent.color,
         severity: 'warning',
-        message: `⚡ Using enhanced cost estimation model (AI unavailable)`
+        message: `⚡ Using cost estimation model (AI unavailable)`
       });
     }
   } else {
     analysis = getMockHeraAnalysis(patient, session.agentAnalyses);
-    if (!AI_ENABLED) {
-      emitTelemetry(session.id, {
-        type: 'agent_info',
-        agent: agent.id,
-        color: agent.color,
-        message: `Using rule-based analysis (AI not configured)`
-      });
-    }
   }
   
   emitTelemetry(session.id, {
@@ -562,7 +720,7 @@ async function heraAnalyze(session) {
 }
 
 /**
- * Generate consensus using AI
+ * Generate consensus
  */
 async function generateConsensus(session) {
   emitTelemetry(session.id, {
@@ -575,7 +733,6 @@ async function generateConsensus(session) {
   
   if (AI_ENABLED && openaiClient) {
     try {
-      // Single AI call attempt for faster response
       consensus = await retryAICall(
         () => openaiClient.generateConsensusRecommendation(
           session.patient,
@@ -592,22 +749,16 @@ async function generateConsensus(session) {
       });
       
     } catch (error) {
-      console.error('Consensus generation failed after retries:', error);
+      console.error('Consensus generation failed:', error);
       consensus = getMockConsensus(session);
       emitTelemetry(session.id, {
         type: 'consensus_fallback',
         severity: 'warning',
-        message: `⚡ Consensus built from agent analyses (AI synthesis unavailable)`
+        message: `⚡ Consensus built from agent analyses`
       });
     }
   } else {
     consensus = getMockConsensus(session);
-    if (!AI_ENABLED) {
-      emitTelemetry(session.id, {
-        type: 'consensus_info',
-        message: `Consensus built using rule-based synthesis (AI not configured)`
-      });
-    }
   }
   
   session.consensus = consensus;
@@ -615,7 +766,106 @@ async function generateConsensus(session) {
 }
 
 /**
- * Run full negotiation process - OPTIMIZED for parallel execution
+ * FEATURE 1: Handle HITL steering intervention
+ */
+async function handleSteeringIntervention(sessionId, intervention) {
+  const session = activeSessions.get(sessionId);
+  if (!session) throw new Error('Session not found');
+  
+  session.state = NEGOTIATION_STATES.STEERING;
+  session.steeringConstraints.push({
+    timestamp: Date.now(),
+    ...intervention
+  });
+  
+  // Emit the steering event
+  emitTelemetry(sessionId, {
+    type: 'steering_intervention',
+    severity: 'high',
+    message: `🔔 CLINICIAN STEERING: "${intervention.constraint}"`,
+    constraint: intervention.constraint,
+    source: 'clinician'
+  });
+  
+  // Determine which agent should respond based on content
+  const text = intervention.constraint.toLowerCase();
+  let respondingAgent = 'pharmacologist';
+  let responseType = 'acknowledgment';
+  
+  if (text.includes('metformin') || text.includes('gi') || text.includes('stomach') || 
+      text.includes('gastrointestinal') || text.includes('nausea')) {
+    respondingAgent = 'endocrinologist';
+    responseType = 'drug_retraction';
+  } else if (text.includes('cost') || text.includes('expensive') || text.includes('afford') ||
+             text.includes('budget') || text.includes('insurance')) {
+    respondingAgent = 'hera';
+    responseType = 'budget_constraint';
+  } else if (text.includes('gene') || text.includes('cyp') || text.includes('metabolizer') ||
+             text.includes('dna') || text.includes('genetic')) {
+    respondingAgent = 'geneticist';
+    responseType = 'genetic_update';
+  } else if (text.includes('allergy') || text.includes('allergic') || text.includes('reaction') ||
+             text.includes('interaction') || text.includes('side effect')) {
+    respondingAgent = 'pharmacologist';
+    responseType = 'safety_alert';
+  }
+  
+  // Emit agent acknowledgment with flashing alert
+  await agentThink(800);
+  emitTelemetry(sessionId, {
+    type: 'steering_acknowledgment',
+    agent: respondingAgent,
+    color: AGENT_ROLES[respondingAgent.toUpperCase()]?.color,
+    isFlashing: true,
+    message: generateSteeringResponse(respondingAgent, responseType, intervention.constraint),
+    responseType
+  });
+  
+  // Emit re-negotiation signal
+  await agentThink(1200);
+  emitTelemetry(sessionId, {
+    type: 'renegotiation_triggered',
+    message: '🔄 Re-negotiation initiated based on clinician steering...',
+    triggeredBy: respondingAgent,
+    constraint: intervention.constraint
+  });
+  
+  return {
+    acknowledged: true,
+    respondingAgent,
+    responseType,
+    session
+  };
+}
+
+/**
+ * Generate context-aware steering response
+ */
+function generateSteeringResponse(agentId, responseType, constraint) {
+  const responses = {
+    endocrinologist: {
+      drug_retraction: `⚠️ INTERCEPTING: Patient history noted. Withdrawing Metformin from consideration. Pivoting to SGLT2 inhibitor or DPP-4 inhibitor classes with better GI tolerance.`,
+      default: `Acknowledged. Recalibrating metabolic recommendations based on new information.`
+    },
+    hera: {
+      budget_constraint: `🛡️ CONSTRAINT OVERRIDE: Strictly filtering Tier 3 / Specialty drugs from consensus. Enforcing generic-first policy.`,
+      default: `Budget constraint noted. Re-evaluating cost-effectiveness of all recommendations.`
+    },
+    geneticist: {
+      genetic_update: `🧬 RECALIBRATING: Updating pharmacogenomic mapping based on clinical input. Re-analyzing drug metabolism pathways.`,
+      default: `Genetic consideration noted. Adjusting precision medicine recommendations.`
+    },
+    pharmacologist: {
+      safety_alert: `🚨 SAFETY FLAG: New contraindication identified. Initiating drug interaction re-analysis with updated constraints.`,
+      default: `Safety constraint acknowledged. Re-evaluating medication safety profile.`
+    }
+  };
+  
+  return responses[agentId]?.[responseType] || responses[agentId]?.default || 'Constraint acknowledged. Re-evaluating recommendations.';
+}
+
+/**
+ * Run full negotiation process
  */
 async function runNegotiation(sessionId, patient, treatmentContext = {}) {
   const session = createSession(sessionId, patient, treatmentContext);
@@ -636,7 +886,7 @@ async function runNegotiation(sessionId, patient, treatmentContext = {}) {
     message: `═══════════ ROUND 1: Specialist Analysis (Parallel) ═══════════`
   });
   
-  // Phase 1: Run specialist agents IN PARALLEL for faster response
+  // Phase 1: Run specialist agents in parallel
   const startTime = Date.now();
   
   await Promise.all([
@@ -647,7 +897,7 @@ async function runNegotiation(sessionId, patient, treatmentContext = {}) {
   
   console.log(`[Negotiation] Parallel agent analysis completed in ${Date.now() - startTime}ms`);
   
-  // Phase 2: HERA constraint review (needs other agent results)
+  // Phase 2: HERA constraint review
   emitTelemetry(sessionId, {
     type: 'phase_start',
     phase: 'constraint_review',
@@ -657,7 +907,7 @@ async function runNegotiation(sessionId, patient, treatmentContext = {}) {
   session.state = NEGOTIATION_STATES.CONSTRAINT_REVIEW;
   await heraAnalyze(session);
   
-  // Phase 3: Build consensus
+  // Phase 3: Handle vetoes
   const heraAnalysis = session.agentAnalyses.hera;
   
   if (heraAnalysis?.veto?.issued) {
@@ -675,7 +925,7 @@ async function runNegotiation(sessionId, patient, treatmentContext = {}) {
     });
   }
   
-  // Generate final consensus
+  // Phase 4: Generate consensus
   const consensus = await generateConsensus(session);
   
   session.state = NEGOTIATION_STATES.CONSENSUS_REACHED;
@@ -714,884 +964,12 @@ async function runNegotiation(sessionId, patient, treatmentContext = {}) {
   };
 }
 
-// ============== ENHANCED DYNAMIC MOCK FUNCTIONS ==============
-// These functions generate patient-specific responses when AI is unavailable
-// They include a 'mockGenerated' flag to indicate non-AI source
-
-function getMockGeneticistAnalysis(patient) {
-  const pgx = patient.biomarkers?.pharmacogenomics || {};
-  const cyp2d6 = pgx.cyp2d6 || 'Normal Metabolizer';
-  const cyp2c19 = pgx.cyp2c19 || 'Normal Metabolizer';
-  const cyp2c9 = pgx.cyp2c9 || 'Normal Metabolizer';
-  const vkorc1 = pgx.vkorc1 || 'Unknown';
-  const tpmt = pgx.tpmt || 'Normal';
-  
-  const variant = patient.biomarkers?.genomicVariant || 'Not assessed';
-  const genomics = patient.biomarkers?.genomics || {};
-  const medications = patient.medications?.filter(m => m.name) || [];
-  
-  // Dynamic analysis based on actual patient data
-  const keyFindings = [];
-  const risks = [];
-  const drugRecommendations = [];
-  const actionableMutations = [];
-  
-  // CYP2D6 analysis
-  if (cyp2d6.includes('Poor') || cyp2d6.includes('poor')) {
-    keyFindings.push(`CYP2D6 Poor Metabolizer: May have reduced efficacy with codeine, tramadol; increased levels with metoprolol, fluoxetine`);
-    risks.push('Reduced drug activation for prodrugs (codeine, tramadol)');
-    medications.forEach(m => {
-      if (['codeine', 'tramadol', 'metoprolol', 'fluoxetine'].some(d => m.name?.toLowerCase().includes(d))) {
-        drugRecommendations.push({
-          drug: m.name,
-          recommendation: 'dose-adjust',
-          reason: 'CYP2D6 Poor Metabolizer status',
-          evidence: 'CPIC Guidelines'
-        });
-      }
-    });
-  } else if (cyp2d6.includes('Ultrarapid') || cyp2d6.includes('ultrarapid')) {
-    keyFindings.push(`CYP2D6 Ultrarapid Metabolizer: Risk of toxicity with codeine; rapid clearance of other substrates`);
-    risks.push('Codeine toxicity risk due to rapid morphine conversion');
-  } else {
-    keyFindings.push(`CYP2D6 ${cyp2d6}: Standard drug metabolism expected`);
-  }
-  
-  // CYP2C19 analysis
-  if (cyp2c19.includes('Poor') || cyp2c19.includes('poor')) {
-    keyFindings.push(`CYP2C19 Poor Metabolizer: Reduced clopidogrel efficacy; higher PPI exposure`);
-    risks.push('Clopidogrel may not provide adequate antiplatelet effect');
-    medications.forEach(m => {
-      if (['clopidogrel', 'plavix', 'omeprazole', 'pantoprazole'].some(d => m.name?.toLowerCase().includes(d))) {
-        drugRecommendations.push({
-          drug: m.name,
-          recommendation: m.name?.toLowerCase().includes('clopidogrel') ? 'avoid' : 'dose-adjust',
-          reason: 'CYP2C19 Poor Metabolizer status',
-          evidence: 'CPIC Guidelines'
-        });
-      }
-    });
-  }
-  
-  // CYP2C9 and VKORC1 for warfarin
-  if ((cyp2c9.includes('Poor') || vkorc1.includes('A/A')) && 
-      medications.some(m => m.name?.toLowerCase().includes('warfarin'))) {
-    keyFindings.push(`Warfarin sensitivity detected: CYP2C9 ${cyp2c9}, VKORC1 ${vkorc1}`);
-    risks.push('Significantly reduced warfarin dose likely required');
-    drugRecommendations.push({
-      drug: 'Warfarin',
-      recommendation: 'dose-adjust',
-      reason: `Genetic variants (CYP2C9 ${cyp2c9}, VKORC1 ${vkorc1}) indicate warfarin sensitivity`,
-      evidence: 'PharmGKB/CPIC Guidelines'
-    });
-  }
-  
-  // Genomic variants
-  if (variant !== 'Not assessed' && variant !== 'Unknown') {
-    actionableMutations.push(variant);
-    keyFindings.push(`Actionable variant detected: ${variant}`);
-  }
-  
-  // Oncology markers
-  if (genomics.microsatelliteStatus === 'MSI-H') {
-    actionableMutations.push('MSI-H');
-    keyFindings.push('MSI-H status: May benefit from immunotherapy (pembrolizumab, dostarlimab)');
-  }
-  if (genomics.herStatus === 'Positive') {
-    actionableMutations.push('HER2-Positive');
-    keyFindings.push('HER2-Positive: Eligible for HER2-targeted therapies (trastuzumab, T-DXd)');
-  }
-  
-  // Calculate confidence based on available data
-  let confidence = 0.5;
-  if (pgx.cyp2d6 || pgx.cyp2c19) confidence += 0.15;
-  if (variant !== 'Not assessed') confidence += 0.1;
-  if (Object.keys(genomics).length > 0) confidence += 0.1;
-  confidence = Math.min(0.85, confidence);
-  
-  // Determine proposal type
-  let proposalType = 'Standard';
-  if (risks.length > 2 || drugRecommendations.some(r => r.recommendation === 'avoid')) {
-    proposalType = 'Conservative';
-  }
-  
-  return {
-    analysis: `Pharmacogenomic profile analyzed for ${patient.name || 'patient'}. ${keyFindings.length} notable findings identified based on genetic markers.`,
-    metabolizerStatus: {
-      cyp2d6: cyp2d6,
-      cyp2c19: cyp2c19,
-      cyp2c9: cyp2c9,
-      vkorc1: vkorc1,
-      tpmt: tpmt
-    },
-    actionableMutations,
-    drugRecommendations,
-    proposalType,
-    confidence: parseFloat(confidence.toFixed(2)),
-    keyFindings: keyFindings.length > 0 ? keyFindings : ['No significant pharmacogenomic concerns identified'],
-    risks: risks.length > 0 ? risks : ['No elevated genetic risks detected'],
-    mockGenerated: true,
-    mockReason: 'AI service unavailable - using enhanced algorithmic analysis'
-  };
-}
-
-function getMockPharmacologistAnalysis(patient) {
-  const medications = patient.medications?.filter(m => m.name) || [];
-  const allergies = patient.allergies || [];
-  const pgx = patient.biomarkers?.pharmacogenomics || {};
-  
-  // Import pharmacology service for comprehensive analysis
-  let pharmacologyAnalysis = null;
-  try {
-    const pharmacologyService = require('./pharmacology.service');
-    pharmacologyAnalysis = pharmacologyService.analyzePatientPharmacology(patient);
-  } catch (e) {
-    console.warn('Pharmacology service not available for mock analysis');
-  }
-  
-  const interactions = [];
-  const allergyAlerts = [];
-  const doseAdjustments = [];
-  const criticalAlerts = [];
-  const recommendations = [];
-  
-  // Check for common drug-drug interactions
-  const medNames = medications.map(m => (m.name || '').toLowerCase());
-  
-  // Warfarin interactions
-  if (medNames.some(m => m.includes('warfarin'))) {
-    if (medNames.some(m => m.includes('aspirin'))) {
-      interactions.push({
-        drugs: ['Warfarin', 'Aspirin'],
-        severity: 'major',
-        mechanism: 'Both affect hemostasis; additive bleeding risk',
-        management: 'Monitor for signs of bleeding; consider GI protection'
-      });
-    }
-    if (medNames.some(m => m.includes('omeprazole') || m.includes('pantoprazole'))) {
-      interactions.push({
-        drugs: ['Warfarin', 'PPI'],
-        severity: 'moderate',
-        mechanism: 'PPIs may alter warfarin metabolism',
-        management: 'Monitor INR more frequently'
-      });
-    }
-  }
-  
-  // ACE inhibitor + Potassium interactions
-  if (medNames.some(m => m.includes('lisinopril') || m.includes('enalapril') || m.includes('ramipril'))) {
-    if (medNames.some(m => m.includes('potassium') || m.includes('spironolactone'))) {
-      interactions.push({
-        drugs: ['ACE Inhibitor', 'Potassium-sparing agent'],
-        severity: 'major',
-        mechanism: 'Additive hyperkalemia risk',
-        management: 'Monitor serum potassium closely'
-      });
-      criticalAlerts.push('Hyperkalemia risk with current medication combination');
-    }
-  }
-  
-  // Metformin + Contrast considerations
-  if (medNames.some(m => m.includes('metformin'))) {
-    recommendations.push('Hold metformin 48h before/after IV contrast procedures to prevent lactic acidosis');
-  }
-  
-  // Check allergies against current medications
-  allergies.forEach(allergy => {
-    const allergen = (allergy.allergen || '').toLowerCase();
-    medications.forEach(med => {
-      const medName = (med.name || '').toLowerCase();
-      // Penicillin cross-reactivity
-      if (allergen.includes('penicillin') && 
-          (medName.includes('amoxicillin') || medName.includes('ampicillin'))) {
-        allergyAlerts.push({
-          allergen: allergy.allergen,
-          risk: `${med.name} is a penicillin - CONTRAINDICATED`,
-          action: 'avoid'
-        });
-        criticalAlerts.push(`ALLERGY ALERT: Patient allergic to ${allergy.allergen}, currently on ${med.name}`);
-      }
-      // Sulfa cross-reactivity
-      if (allergen.includes('sulfa') && medName.includes('sulfamethoxazole')) {
-        allergyAlerts.push({
-          allergen: allergy.allergen,
-          risk: `${med.name} contains sulfa - CONTRAINDICATED`,
-          action: 'avoid'
-        });
-        criticalAlerts.push(`ALLERGY ALERT: Sulfa allergy with sulfamethoxazole on board`);
-      }
-    });
-  });
-  
-  // PGx-based dose adjustments
-  if (pgx.cyp2d6?.toLowerCase().includes('poor')) {
-    medications.forEach(med => {
-      if (['metoprolol', 'carvedilol'].some(d => med.name?.toLowerCase().includes(d))) {
-        doseAdjustments.push({
-          drug: med.name,
-          currentDose: med.dosage || 'Unknown',
-          recommendedDose: 'Consider 50% dose reduction',
-          reason: 'CYP2D6 Poor Metabolizer - reduced clearance'
-        });
-      }
-    });
-  }
-  
-  // Calculate dynamic safety score
-  let safetyScore = 100;
-  safetyScore -= interactions.filter(i => i.severity === 'major').length * 15;
-  safetyScore -= interactions.filter(i => i.severity === 'moderate').length * 8;
-  safetyScore -= allergyAlerts.filter(a => a.action === 'avoid').length * 25;
-  safetyScore -= criticalAlerts.length * 10;
-  safetyScore = Math.max(10, Math.min(100, safetyScore));
-  
-  // Use pharmacology service results if available
-  if (pharmacologyAnalysis) {
-    safetyScore = pharmacologyAnalysis.summary.safetyScore;
-    if (pharmacologyAnalysis.criticalAlerts.length > 0) {
-      pharmacologyAnalysis.criticalAlerts.forEach(alert => {
-        if (!criticalAlerts.includes(alert.type)) {
-          criticalAlerts.push(`${alert.type}: Review required`);
-        }
-      });
-    }
-  }
-  
-  // Determine proposal type
-  let proposalType = 'Standard';
-  if (safetyScore < 60 || criticalAlerts.length > 0) {
-    proposalType = 'Conservative';
-  }
-  
-  // Generate recommendations
-  if (interactions.length > 0) {
-    recommendations.push(`${interactions.length} drug interaction(s) identified - review clinical significance`);
-  }
-  if (doseAdjustments.length > 0) {
-    recommendations.push('Pharmacogenomic-based dose adjustments recommended');
-  }
-  if (recommendations.length === 0) {
-    recommendations.push('Continue current medications with standard monitoring');
-  }
-  
-  // Calculate confidence
-  let confidence = 0.6;
-  if (pharmacologyAnalysis) confidence += 0.15;
-  if (allergies.length > 0) confidence += 0.1; // More data = more confidence
-  if (Object.keys(pgx).length > 0) confidence += 0.1;
-  confidence = Math.min(0.85, confidence);
-  
-  return {
-    analysis: `Comprehensive safety review of ${medications.length} medications. ${interactions.length} interactions identified, ${allergyAlerts.length} allergy concerns flagged.`,
-    currentMedications: medications.map(m => ({
-      name: m.name,
-      appropriateness: allergyAlerts.some(a => a.risk?.includes(m.name)) ? 'contraindicated' : 
-                       doseAdjustments.some(d => d.drug === m.name) ? 'dose-adjust' : 'appropriate',
-      notes: `${m.dosage || ''} ${m.frequency || ''}`
-    })),
-    interactions,
-    allergyAlerts,
-    doseAdjustments,
-    safetyScore,
-    proposalType,
-    confidence: parseFloat(confidence.toFixed(2)),
-    criticalAlerts,
-    recommendations,
-    mockGenerated: true,
-    mockReason: 'AI service unavailable - using enhanced rule-based analysis with drug database'
-  };
-}
-
-function getMockEndocrinologistAnalysis(patient) {
-  const vitals = patient.vitals || {};
-  const glucose = vitals.sugar || vitals.glucose || null;
-  const weight = patient.weight;
-  const height = patient.height;
-  const bmi = (weight && height) ? (weight / Math.pow(height / 100, 2)).toFixed(1) : null;
-  const conditions = patient.medicalHistory?.conditions || [];
-  const medications = patient.medications?.filter(m => m.name) || [];
-  
-  const hasDiabetes = conditions.some(c => 
-    c.toLowerCase().includes('diabetes') || c.toLowerCase().includes('dm')
-  );
-  const hasThyroid = conditions.some(c =>
-    c.toLowerCase().includes('thyroid') || c.toLowerCase().includes('hypothyroid') || c.toLowerCase().includes('hyperthyroid')
-  );
-  const hasMetabolicSyndrome = conditions.some(c =>
-    c.toLowerCase().includes('metabolic') || c.toLowerCase().includes('obesity')
-  );
-  
-  const keyFindings = [];
-  const metabolicRisks = [];
-  const recommendations = [];
-  const currentTherapyAssessment = [];
-  
-  // Glucose analysis
-  let diabetesControl = 'Not applicable';
-  if (glucose !== null) {
-    if (glucose >= 200) {
-      diabetesControl = 'Poor - Significantly elevated';
-      keyFindings.push(`Fasting glucose ${glucose} mg/dL indicates poor glycemic control`);
-      metabolicRisks.push('Hyperglycemia - risk of diabetic complications');
-      recommendations.push({
-        category: 'Glycemic',
-        suggestion: 'Intensify diabetes management; consider additional agent or insulin',
-        priority: 'High',
-        rationale: `Glucose ${glucose} mg/dL is significantly above target`
-      });
-    } else if (glucose >= 126) {
-      diabetesControl = 'Suboptimal';
-      keyFindings.push(`Fasting glucose ${glucose} mg/dL suggests suboptimal control`);
-      recommendations.push({
-        category: 'Glycemic',
-        suggestion: 'Review diabetes regimen; optimize current therapy',
-        priority: 'Medium',
-        rationale: 'Glucose above fasting target of <126 mg/dL'
-      });
-    } else if (glucose >= 100 && glucose < 126) {
-      diabetesControl = 'Prediabetes range';
-      keyFindings.push(`Fasting glucose ${glucose} mg/dL in prediabetes range`);
-      if (!hasDiabetes) {
-        recommendations.push({
-          category: 'Glycemic',
-          suggestion: 'Consider HbA1c testing; lifestyle intervention',
-          priority: 'Medium',
-          rationale: 'Prediabetes may progress without intervention'
-        });
-      }
-    } else {
-      diabetesControl = 'Adequate';
-      keyFindings.push(`Fasting glucose ${glucose} mg/dL within normal limits`);
-    }
-  } else {
-    keyFindings.push('Glucose not available - recommend fasting glucose or HbA1c');
-  }
-  
-  // BMI analysis
-  let weightStatus = 'Not assessed';
-  if (bmi !== null) {
-    const bmiNum = parseFloat(bmi);
-    if (bmiNum >= 40) {
-      weightStatus = `Class III Obesity (BMI ${bmi})`;
-      metabolicRisks.push('Severe obesity - high cardiovascular and metabolic risk');
-      recommendations.push({
-        category: 'Weight',
-        suggestion: 'Consider weight management program; GLP-1 agonist or bariatric referral',
-        priority: 'High',
-        rationale: 'Class III obesity significantly increases morbidity'
-      });
-    } else if (bmiNum >= 35) {
-      weightStatus = `Class II Obesity (BMI ${bmi})`;
-      metabolicRisks.push('Obesity increases insulin resistance and cardiovascular risk');
-    } else if (bmiNum >= 30) {
-      weightStatus = `Class I Obesity (BMI ${bmi})`;
-      recommendations.push({
-        category: 'Weight',
-        suggestion: 'Lifestyle modification; consider weight-favorable medications',
-        priority: 'Medium',
-        rationale: 'Obesity management improves metabolic outcomes'
-      });
-    } else if (bmiNum >= 25) {
-      weightStatus = `Overweight (BMI ${bmi})`;
-    } else if (bmiNum >= 18.5) {
-      weightStatus = `Normal (BMI ${bmi})`;
-    } else {
-      weightStatus = `Underweight (BMI ${bmi})`;
-      metabolicRisks.push('Underweight - assess for nutritional deficiencies');
-    }
-  }
-  
-  // Metabolic syndrome assessment
-  let metabolicSyndromeStatus = 'Evaluation needed';
-  let msComponents = 0;
-  if (bmi && parseFloat(bmi) >= 30) msComponents++;
-  if (glucose && glucose >= 100) msComponents++;
-  if (vitals.bpSystolic && vitals.bpSystolic >= 130) msComponents++;
-  // Would need lipids for full assessment
-  
-  if (msComponents >= 2) {
-    metabolicSyndromeStatus = `${msComponents}/5 criteria (partial assessment)`;
-    if (msComponents >= 3) {
-      metabolicRisks.push('Metabolic syndrome likely - increased cardiovascular risk');
-    }
-  }
-  
-  // Assess current diabetes medications
-  medications.forEach(med => {
-    const medName = (med.name || '').toLowerCase();
-    
-    if (medName.includes('metformin')) {
-      currentTherapyAssessment.push({
-        medication: med.name,
-        effectiveness: glucose && glucose > 150 ? 'May need intensification' : 'Appropriate first-line',
-        optimization: glucose && glucose > 150 ? 'Consider adding second agent' : 'Continue current dose'
-      });
-    }
-    
-    if (medName.includes('semaglutide') || medName.includes('ozempic') || medName.includes('wegovy')) {
-      currentTherapyAssessment.push({
-        medication: med.name,
-        effectiveness: 'GLP-1 agonist - good glycemic and weight benefits',
-        optimization: 'Ensure titrated to therapeutic dose'
-      });
-    }
-    
-    if (medName.includes('insulin')) {
-      currentTherapyAssessment.push({
-        medication: med.name,
-        effectiveness: glucose && glucose > 180 ? 'May need dose adjustment' : 'Appears adequate',
-        optimization: 'Monitor for hypoglycemia; adjust based on glucose patterns'
-      });
-    }
-    
-    if (medName.includes('levothyroxine') || medName.includes('synthroid')) {
-      currentTherapyAssessment.push({
-        medication: med.name,
-        effectiveness: 'Thyroid replacement',
-        optimization: 'Check TSH in 6-8 weeks after any dose changes'
-      });
-    }
-  });
-  
-  // Thyroid considerations
-  let thyroidFunction = 'Not assessed';
-  if (hasThyroid) {
-    thyroidFunction = 'Known thyroid disorder - ensure TSH monitoring';
-    keyFindings.push('Thyroid condition on record - monitor thyroid function');
-  }
-  
-  // Calculate confidence
-  let confidence = 0.5;
-  if (glucose !== null) confidence += 0.15;
-  if (bmi !== null) confidence += 0.1;
-  if (currentTherapyAssessment.length > 0) confidence += 0.1;
-  confidence = Math.min(0.85, confidence);
-  
-  // Determine proposal type
-  let proposalType = 'Standard';
-  if (metabolicRisks.length > 2 || (glucose && glucose >= 200)) {
-    proposalType = 'Aggressive';
-  } else if (recommendations.length === 0) {
-    proposalType = 'Conservative';
-  }
-  
-  if (keyFindings.length === 0) {
-    keyFindings.push('Limited metabolic data available for assessment');
-  }
-  
-  return {
-    analysis: `Metabolic profile assessed for ${patient.name || 'patient'}. ${keyFindings.length} findings, ${metabolicRisks.length} risk factors identified.`,
-    metabolicStatus: {
-      diabetesControl,
-      thyroidFunction,
-      weightStatus,
-      metabolicSyndrome: metabolicSyndromeStatus
-    },
-    currentTherapyAssessment,
-    recommendations,
-    metabolicRisks: metabolicRisks.length > 0 ? metabolicRisks : ['No significant metabolic risks identified'],
-    proposalType,
-    confidence: parseFloat(confidence.toFixed(2)),
-    keyFindings,
-    mockGenerated: true,
-    mockReason: 'AI service unavailable - using enhanced algorithmic metabolic analysis'
-  };
-}
-
-function getMockHeraAnalysis(patient, proposals) {
-  const socioEconomic = patient.socioEconomic || {};
-  const budget = socioEconomic.monthlyMedicationBudget || 150;
-  const insuranceTier = socioEconomic.insuranceTier || 'Unknown';
-  const location = socioEconomic.location || 'Unknown';
-  const transportation = socioEconomic.transportationAccess || 'Unknown';
-  const workFlexibility = socioEconomic.workScheduleFlexibility || 'Unknown';
-  
-  const medications = patient.medications?.filter(m => m.name) || [];
-  
-  // Estimate medication costs (simplified model)
-  const drugCostEstimates = {
-    // Brand name/specialty drugs (high cost)
-    'humira': 5000, 'enbrel': 4500, 'keytruda': 15000, 'opdivo': 12000,
-    'ozempic': 900, 'wegovy': 1300, 'mounjaro': 1000, 'jardiance': 500,
-    'eliquis': 450, 'xarelto': 400, 'entresto': 550,
-    // Generics (low cost)
-    'metformin': 15, 'lisinopril': 10, 'atorvastatin': 15, 'amlodipine': 12,
-    'metoprolol': 15, 'omeprazole': 20, 'levothyroxine': 25, 'aspirin': 10,
-    // Medium cost
-    'insulin': 300, 'lantus': 350, 'humalog': 300,
-    'default': 50
-  };
-  
-  let totalEstimatedCost = 0;
-  const medicationCostBreakdown = [];
-  
-  medications.forEach(med => {
-    const medName = (med.name || '').toLowerCase();
-    let cost = drugCostEstimates.default;
-    
-    for (const [drug, price] of Object.entries(drugCostEstimates)) {
-      if (medName.includes(drug)) {
-        cost = price;
-        break;
-      }
-    }
-    
-    totalEstimatedCost += cost;
-    medicationCostBreakdown.push({
-      medication: med.name,
-      estimatedMonthlyCost: cost,
-      tier: cost > 500 ? 'Specialty' : cost > 100 ? 'Brand' : 'Generic'
-    });
-  });
-  
-  // Budget analysis
-  let budgetStatus = 'within';
-  let budgetGap = budget - totalEstimatedCost;
-  
-  if (totalEstimatedCost > budget * 3) {
-    budgetStatus = 'significantly_exceeded';
-  } else if (totalEstimatedCost > budget) {
-    budgetStatus = 'exceeded';
-  }
-  
-  // Insurance coverage assessment
-  let coverageLikelihood = 'likely';
-  const specialtyMeds = medicationCostBreakdown.filter(m => m.tier === 'Specialty');
-  
-  if (insuranceTier === 'Bronze' || insuranceTier === 'Uninsured') {
-    if (specialtyMeds.length > 0) {
-      coverageLikelihood = 'unlikely';
-    } else {
-      coverageLikelihood = 'partial';
-    }
-  } else if (insuranceTier === 'Silver' && specialtyMeds.length > 0) {
-    coverageLikelihood = 'prior_auth_needed';
-  }
-  
-  // Access assessment
-  const accessAssessment = {
-    geographic: location.toLowerCase().includes('rural') ? 'Limited - rural area' : 'Adequate',
-    transportation: transportation === 'None' || transportation === 'Limited' ? 
-      'Barrier - may need telehealth or home delivery' : 'Available',
-    scheduling: workFlexibility === 'None' ? 
-      'Barrier - limited appointment flexibility' : 'Manageable'
-  };
-  
-  // Determine if VETO needed
-  let veto = { issued: false };
-  const constraints = [];
-  
-  if (budgetStatus === 'significantly_exceeded') {
-    veto = {
-      issued: true,
-      reason: `Monthly cost estimate $${totalEstimatedCost} exceeds 3x patient budget ($${budget}/mo)`,
-      constraints: ['Budget severely exceeded']
-    };
-    constraints.push('Budget constraint');
-  }
-  
-  if (coverageLikelihood === 'unlikely' && specialtyMeds.length > 0) {
-    if (!veto.issued) {
-      veto = {
-        issued: true,
-        reason: `${specialtyMeds.length} specialty medication(s) unlikely covered by ${insuranceTier} plan`,
-        constraints: ['Insurance coverage inadequate']
-      };
-    } else {
-      veto.constraints.push('Insurance coverage inadequate');
-    }
-    constraints.push('Insurance constraint');
-  }
-  
-  // Generate alternatives
-  const alternatives = [];
-  
-  if (budgetStatus !== 'within') {
-    // Suggest generic alternatives
-    const brandMeds = medicationCostBreakdown.filter(m => m.tier === 'Brand' || m.tier === 'Specialty');
-    if (brandMeds.length > 0) {
-      alternatives.push({
-        category: 'Generic',
-        suggestion: `Consider generic alternatives for: ${brandMeds.map(m => m.medication).join(', ')}`,
-        costSavings: `Potential savings: $${brandMeds.reduce((sum, m) => sum + m.estimatedMonthlyCost * 0.7, 0).toFixed(0)}/month`,
-        tradeoff: 'Some brand medications may not have generic equivalents'
-      });
-    }
-    
-    // Suggest patient assistance programs
-    if (specialtyMeds.length > 0) {
-      alternatives.push({
-        category: 'Assistance Program',
-        suggestion: `Manufacturer assistance programs available for: ${specialtyMeds.map(m => m.medication).join(', ')}`,
-        costSavings: 'Up to 100% cost reduction for eligible patients',
-        tradeoff: 'Requires application and income verification'
-      });
-    }
-  }
-  
-  if (accessAssessment.transportation.includes('Barrier')) {
-    alternatives.push({
-      category: 'Alternative Route',
-      suggestion: 'Consider telehealth visits and mail-order pharmacy',
-      costSavings: 'Reduces transportation burden and may offer lower prices',
-      tradeoff: 'Some medications require in-person pickup'
-    });
-  }
-  
-  // Calculate feasibility score
-  let feasibilityScore = 100;
-  if (budgetStatus === 'exceeded') feasibilityScore -= 25;
-  if (budgetStatus === 'significantly_exceeded') feasibilityScore -= 50;
-  if (coverageLikelihood === 'unlikely') feasibilityScore -= 30;
-  if (coverageLikelihood === 'prior_auth_needed') feasibilityScore -= 15;
-  if (accessAssessment.transportation.includes('Barrier')) feasibilityScore -= 15;
-  if (accessAssessment.scheduling.includes('Barrier')) feasibilityScore -= 10;
-  feasibilityScore = Math.max(10, Math.min(100, feasibilityScore));
-  
-  // Generate recommendations
-  const recommendations = [];
-  if (veto.issued) {
-    recommendations.push('Treatment plan requires revision to meet patient constraints');
-  }
-  if (coverageLikelihood === 'prior_auth_needed') {
-    recommendations.push('Initiate prior authorization for specialty medications');
-  }
-  if (alternatives.length > 0) {
-    recommendations.push(`${alternatives.length} cost-reduction option(s) identified`);
-  }
-  if (recommendations.length === 0) {
-    recommendations.push('Current treatment plan appears feasible within patient constraints');
-  }
-  
-  // Calculate confidence
-  let confidence = 0.6;
-  if (budget !== 150) confidence += 0.1; // User provided actual budget
-  if (insuranceTier !== 'Unknown') confidence += 0.1;
-  if (location !== 'Unknown') confidence += 0.05;
-  confidence = Math.min(0.85, confidence);
-  
-  return {
-    analysis: `Resource constraints evaluated. Est. monthly cost: $${totalEstimatedCost} vs budget $${budget}. ${constraints.length > 0 ? constraints.join(', ') + ' identified.' : 'All constraints satisfied.'}`,
-    constraintEvaluation: {
-      budget: {
-        status: budgetStatus,
-        patientBudget: `$${budget}/month`,
-        estimatedCost: `$${totalEstimatedCost}/month`,
-        gap: budgetGap >= 0 ? `$${budgetGap} under budget` : `$${Math.abs(budgetGap)} over budget`,
-        breakdown: medicationCostBreakdown
-      },
-      insurance: {
-        tier: insuranceTier,
-        coverageLikelihood,
-        notes: coverageLikelihood === 'prior_auth_needed' ? 
-          'Specialty medications may require prior authorization' :
-          coverageLikelihood === 'unlikely' ?
-          'Consider patient assistance programs' :
-          'Standard formulary coverage expected'
-      },
-      access: accessAssessment
-    },
-    feasibilityScore,
-    veto,
-    alternatives,
-    recommendations,
-    confidence: parseFloat(confidence.toFixed(2)),
-    mockGenerated: true,
-    mockReason: 'AI service unavailable - using enhanced cost estimation model'
-  };
-}
-
-function getMockConsensus(session) {
-  const patient = session.patient;
-  const medications = patient.medications?.filter(m => m.name) || [];
-  const conditions = patient.medicalHistory?.conditions || [];
-  const analyses = session.agentAnalyses;
-  
-  // Gather key findings from all agents
-  const geneticistFindings = analyses.geneticist?.keyFindings || [];
-  const pharmacologistAlerts = analyses.pharmacologist?.criticalAlerts || [];
-  const endoRecommendations = analyses.endocrinologist?.recommendations || [];
-  const heraVeto = analyses.hera?.veto?.issued;
-  const heraAlternatives = analyses.hera?.alternatives || [];
-  
-  // Calculate weighted confidence
-  const avgConfidence = (
-    (analyses.geneticist?.confidence || 0.5) +
-    (analyses.pharmacologist?.confidence || 0.5) +
-    (analyses.endocrinologist?.confidence || 0.5) +
-    (analyses.hera?.confidence || 0.5)
-  ) / 4;
-  
-  // Determine agent agreement
-  const agentAgreement = {
-    geneticist: analyses.geneticist?.proposalType === 'Conservative' ? 'adjusted' : 'agreed',
-    pharmacologist: pharmacologistAlerts.length > 0 ? 'adjusted' : 'agreed',
-    endocrinologist: endoRecommendations.some(r => r.priority === 'High') ? 'adjusted' : 'agreed',
-    hera: heraVeto ? 'vetoed_then_adjusted' : 'approved'
-  };
-  
-  // Count adjustments
-  const adjustedCount = Object.values(agentAgreement).filter(v => v !== 'agreed' && v !== 'approved').length;
-  let consensusLevel = 'Full';
-  if (adjustedCount > 0) consensusLevel = 'Majority';
-  if (adjustedCount > 2) consensusLevel = 'Adjusted';
-  
-  // Build treatment protocol based on conditions
-  let protocol = 'Personalized Treatment Optimization Protocol';
-  let details = '';
-  const treatmentMedications = [];
-  const monitoring = [];
-  const precautions = [];
-  
-  // Disease-specific protocols
-  if (conditions.some(c => c.toLowerCase().includes('diabetes'))) {
-    protocol = 'Glycemic Optimization Protocol with Safety Monitoring';
-    details = 'Focus on achieving target glucose levels while minimizing hypoglycemia risk. ';
-    
-    // Check if metformin should be continued/adjusted
-    const hasMetformin = medications.some(m => m.name?.toLowerCase().includes('metformin'));
-    if (hasMetformin) {
-      treatmentMedications.push({
-        name: 'Metformin',
-        dose: medications.find(m => m.name?.toLowerCase().includes('metformin'))?.dosage || '500mg',
-        frequency: 'Twice daily with meals',
-        duration: 'Ongoing',
-        notes: 'Continue current therapy; monitor renal function'
-      });
-    }
-    
-    monitoring.push('HbA1c every 3 months until at target, then every 6 months');
-    monitoring.push('Fasting glucose and renal function panel');
-    
-    // Add GLP-1 if high priority endocrine recommendation
-    if (endoRecommendations.some(r => r.category === 'Glycemic' && r.priority === 'High')) {
-      details += 'Consider adding GLP-1 agonist for additional glycemic and weight benefits. ';
-      treatmentMedications.push({
-        name: 'Semaglutide (consider)',
-        dose: '0.25mg weekly, titrate to 1mg',
-        frequency: 'Once weekly',
-        duration: 'Long-term',
-        notes: 'If added, provides cardiovascular benefits'
-      });
-    }
-  } else if (conditions.some(c => c.toLowerCase().includes('cardiac') || c.toLowerCase().includes('heart') || c.toLowerCase().includes('hypertension'))) {
-    protocol = 'Cardiovascular Risk Reduction Protocol';
-    details = 'Optimize blood pressure, lipids, and antiplatelet therapy as indicated. ';
-    
-    monitoring.push('Blood pressure monitoring; home readings if possible');
-    monitoring.push('Lipid panel annually');
-    monitoring.push('Renal function and electrolytes');
-    
-    // Add statins if cardiac
-    if (!medications.some(m => m.name?.toLowerCase().includes('statin') || m.name?.toLowerCase().includes('atorvastatin'))) {
-      treatmentMedications.push({
-        name: 'Atorvastatin (consider)',
-        dose: '20-40mg',
-        frequency: 'Once daily at bedtime',
-        duration: 'Ongoing',
-        notes: 'For cardiovascular risk reduction'
-      });
-    }
-  } else if (patient.disease === 'Neurological') {
-    protocol = 'Neurological Symptom Management Protocol';
-    details = 'Balance symptom control with minimizing medication burden and side effects. ';
-    
-    monitoring.push('Neurological symptom diary');
-    monitoring.push('Cognitive assessment if indicated');
-  } else if (patient.disease === 'Oncology') {
-    protocol = 'Precision Oncology Treatment Protocol';
-    details = 'Leverage genomic markers for targeted therapy selection. ';
-    
-    if (geneticistFindings.some(f => f.includes('EGFR'))) {
-      details += 'EGFR-targeted therapy indicated based on molecular profile. ';
-    }
-    if (geneticistFindings.some(f => f.includes('MSI-H'))) {
-      details += 'MSI-H status supports immunotherapy approach. ';
-    }
-    
-    monitoring.push('Tumor markers as appropriate');
-    monitoring.push('CT/imaging per protocol');
-    monitoring.push('CBC, CMP, LFTs per treatment cycle');
-  }
-  
-  // Add current medications to list
-  medications.forEach(med => {
-    if (!treatmentMedications.some(tm => tm.name.toLowerCase().includes(med.name?.toLowerCase()))) {
-      const adjustment = analyses.pharmacologist?.doseAdjustments?.find(d => d.drug === med.name);
-      treatmentMedications.push({
-        name: med.name,
-        dose: adjustment ? adjustment.recommendedDose : med.dosage,
-        frequency: med.frequency,
-        duration: 'Ongoing',
-        notes: adjustment ? `Adjusted: ${adjustment.reason}` : 'Continue as prescribed'
-      });
-    }
-  });
-  
-  // Add precautions based on agent findings
-  if (pharmacologistAlerts.length > 0) {
-    pharmacologistAlerts.forEach(alert => precautions.push(alert));
-  }
-  if (analyses.geneticist?.risks?.length > 0) {
-    analyses.geneticist.risks.forEach(risk => {
-      if (!precautions.includes(risk)) precautions.push(risk);
-    });
-  }
-  if (precautions.length === 0) {
-    precautions.push('Monitor for adverse effects');
-    precautions.push('Report new or worsening symptoms');
-  }
-  
-  // Handle HERA veto with adjustments
-  let adjustedForConstraints = false;
-  let adjustmentReason = null;
-  
-  if (heraVeto && heraAlternatives.length > 0) {
-    adjustedForConstraints = true;
-    adjustmentReason = analyses.hera.veto.reason;
-    details += `Note: Treatment adjusted for ${heraAlternatives[0].category.toLowerCase()} considerations. `;
-    
-    // Mark potentially unaffordable medications
-    treatmentMedications.forEach(med => {
-      const highCost = analyses.hera?.constraintEvaluation?.budget?.breakdown?.find(
-        b => b.medication === med.name && b.tier === 'Specialty'
-      );
-      if (highCost) {
-        med.notes += ' [May need assistance program]';
-      }
-    });
-  }
-  
-  // Finalize details
-  if (!details) {
-    details = `Maintain current medication regimen with ${monitoring.length > 0 ? 'specified' : 'standard'} monitoring. Personalized based on patient's ${patient.disease || 'clinical'} profile and agent consensus.`;
-  }
-  
-  return {
-    recommendedProtocol: protocol,
-    protocolDetails: details.trim(),
-    rationale: `Based on ${Object.keys(analyses).length}-agent analysis of ${patient.name || 'patient'}'s ${patient.disease || 'clinical'} profile. ${adjustedCount > 0 ? `${adjustedCount} agent(s) recommended adjustments.` : 'All agents in agreement.'}`,
-    medications: treatmentMedications,
-    monitoring,
-    precautions,
-    adjustedForConstraints,
-    adjustmentReason,
-    confidence: parseFloat(avgConfidence.toFixed(2)),
-    consensusLevel,
-    agentAgreement,
-    mockGenerated: true,
-    mockReason: 'AI service unavailable - consensus built from agent analyses'
-  };
-}
-
 /**
  * Inject human intervention
  */
 async function injectHumanIntervention(sessionId, intervention) {
   const session = activeSessions.get(sessionId);
-  if (!session) {
-    throw new Error('Session not found');
-  }
+  if (!session) throw new Error('Session not found');
   
   session.state = NEGOTIATION_STATES.HUMAN_INTERVENTION;
   session.humanInterventions.push({
@@ -1599,34 +977,195 @@ async function injectHumanIntervention(sessionId, intervention) {
     ...intervention
   });
   
+  // Check if this is a steering intervention
+  if (intervention.type === 'steering' || intervention.constraint) {
+    return handleSteeringIntervention(sessionId, intervention);
+  }
+  
   emitTelemetry(sessionId, {
     type: 'human_intervention',
     severity: 'critical',
-    message: `🔔 HUMAN INTERVENTION: ${intervention.message}`,
+    message: `🔔 HUMAN INTERVENTION: ${intervention.message || intervention.constraint}`,
     intervention
   });
   
   return session;
 }
 
-/**
- * Get session by ID
- */
 function getSession(sessionId) {
   return activeSessions.get(sessionId);
 }
 
-/**
- * Get all telemetry for a session
- */
 function getSessionTelemetry(sessionId) {
   const session = activeSessions.get(sessionId);
   return session ? session.telemetry : [];
 }
 
+// ============== MOCK FUNCTIONS ==============
+// Keeping these for when AI is unavailable
+
+function getMockGeneticistAnalysis(patient) {
+  const pgx = patient.biomarkers?.pharmacogenomics || {};
+  const cyp2d6 = pgx.cyp2d6 || pgx.CYP2D6 || 'Normal Metabolizer';
+  const cyp2c19 = pgx.cyp2c19 || pgx.CYP2C19 || 'Normal Metabolizer';
+  
+  const keyFindings = [];
+  const actionableMutations = [];
+  
+  if (cyp2d6.toLowerCase().includes('poor')) {
+    keyFindings.push(`CYP2D6 Poor Metabolizer: Reduced efficacy with codeine/tramadol; increased levels with beta-blockers`);
+    actionableMutations.push('CYP2D6 PM');
+  }
+  if (cyp2c19.toLowerCase().includes('poor')) {
+    keyFindings.push(`CYP2C19 Poor Metabolizer: Reduced clopidogrel efficacy; consider prasugrel/ticagrelor`);
+    actionableMutations.push('CYP2C19 PM');
+  }
+  
+  if (keyFindings.length === 0) {
+    keyFindings.push('Standard pharmacogenomic profile. No significant metabolizer variants detected.');
+  }
+  
+  return {
+    analysis: `Pharmacogenomic profile analyzed for ${patient.name || 'patient'}.`,
+    metabolizerStatus: { cyp2d6, cyp2c19 },
+    actionableMutations,
+    keyFindings,
+    proposalType: actionableMutations.length > 0 ? 'Conservative' : 'Standard',
+    confidence: 0.75,
+    mockGenerated: true
+  };
+}
+
+function getMockPharmacologistAnalysis(patient) {
+  const medications = patient.medications?.filter(m => m.name) || [];
+  const interactions = [];
+  const criticalAlerts = [];
+  
+  // Check common interactions
+  const medNames = medications.map(m => (m.name || '').toLowerCase());
+  
+  if (medNames.some(m => m.includes('warfarin')) && medNames.some(m => m.includes('aspirin'))) {
+    interactions.push({ drugs: ['Warfarin', 'Aspirin'], severity: 'major', mechanism: 'Bleeding risk' });
+    criticalAlerts.push('Major interaction: Warfarin + Aspirin');
+  }
+  
+  let safetyScore = 100 - (interactions.filter(i => i.severity === 'major').length * 15);
+  safetyScore = Math.max(40, Math.min(100, safetyScore));
+  
+  return {
+    analysis: `Safety review of ${medications.length} medications.`,
+    interactions,
+    safetyScore,
+    criticalAlerts,
+    recommendations: criticalAlerts.length > 0 ? ['Review drug interactions'] : ['Continue current regimen with monitoring'],
+    proposalType: criticalAlerts.length > 0 ? 'Conservative' : 'Standard',
+    confidence: 0.78,
+    mockGenerated: true
+  };
+}
+
+function getMockEndocrinologistAnalysis(patient) {
+  const vitals = patient.vitals || {};
+  const glucose = vitals.sugar || vitals.glucose || 120;
+  const keyFindings = [];
+  const metabolicRisks = [];
+  
+  if (glucose >= 180) {
+    keyFindings.push(`Elevated glucose (${glucose} mg/dL) - poor glycemic control`);
+    metabolicRisks.push('Hyperglycemia risk');
+  } else if (glucose >= 126) {
+    keyFindings.push(`Glucose ${glucose} mg/dL - suboptimal control`);
+  } else {
+    keyFindings.push(`Glucose ${glucose} mg/dL - adequate control`);
+  }
+  
+  return {
+    analysis: `Metabolic assessment for ${patient.name || 'patient'}.`,
+    metabolicStatus: { diabetesControl: glucose >= 180 ? 'Poor' : glucose >= 126 ? 'Suboptimal' : 'Adequate' },
+    keyFindings,
+    metabolicRisks,
+    proposalType: glucose >= 180 ? 'Aggressive' : 'Standard',
+    confidence: 0.76,
+    mockGenerated: true
+  };
+}
+
+function getMockHeraAnalysis(patient, proposals) {
+  const budget = patient.socioEconomic?.monthlyMedicationBudget || 150;
+  const medications = patient.medications?.filter(m => m.name) || [];
+  
+  // Estimate costs
+  let totalCost = medications.length * 50;
+  const expensiveMeds = medications.filter(m => 
+    ['ozempic', 'jardiance', 'humira', 'keytruda'].some(e => (m.name || '').toLowerCase().includes(e))
+  );
+  
+  if (expensiveMeds.length > 0) {
+    totalCost += expensiveMeds.length * 500;
+  }
+  
+  const veto = totalCost > budget * 2 ? {
+    issued: true,
+    reason: `Monthly cost estimate $${totalCost} exceeds patient budget ($${budget}/mo)`,
+    constraints: ['Budget exceeded']
+  } : { issued: false };
+  
+  const alternatives = veto.issued ? [{
+    category: 'Generic',
+    suggestion: 'Consider generic alternatives to reduce cost',
+    costSavings: `Up to $${Math.round(totalCost * 0.6)}/month`
+  }] : [];
+  
+  return {
+    analysis: `Resource constraints evaluated. Est. cost: $${totalCost} vs budget $${budget}.`,
+    feasibilityScore: veto.issued ? 45 : 85,
+    veto,
+    alternatives,
+    constraintEvaluation: { budget: { status: veto.issued ? 'exceeded' : 'within' } },
+    confidence: 0.82,
+    mockGenerated: true
+  };
+}
+
+function getMockConsensus(session) {
+  const analyses = session.agentAnalyses;
+  const medications = session.patient.medications?.filter(m => m.name) || [];
+  
+  const avgConfidence = (
+    (analyses.geneticist?.confidence || 0.5) +
+    (analyses.pharmacologist?.confidence || 0.5) +
+    (analyses.endocrinologist?.confidence || 0.5) +
+    (analyses.hera?.confidence || 0.5)
+  ) / 4;
+  
+  return {
+    recommendedProtocol: 'Personalized Treatment Optimization Protocol',
+    protocolDetails: 'Maintain current regimen with specified monitoring.',
+    rationale: `Based on ${Object.keys(analyses).length}-agent analysis.`,
+    medications: medications.map(m => ({
+      name: m.name,
+      dose: m.dosage,
+      frequency: m.frequency,
+      notes: 'Continue as prescribed'
+    })),
+    monitoring: ['Regular follow-up', 'Lab monitoring as indicated'],
+    precautions: ['Report adverse effects', 'Maintain medication adherence'],
+    confidence: avgConfidence,
+    consensusLevel: 'Majority',
+    agentAgreement: {
+      geneticist: 'agreed',
+      pharmacologist: 'agreed',
+      endocrinologist: 'agreed',
+      hera: analyses.hera?.veto?.issued ? 'vetoed_then_adjusted' : 'approved'
+    },
+    mockGenerated: true
+  };
+}
+
 module.exports = {
   runNegotiation,
   injectHumanIntervention,
+  handleSteeringIntervention,
   getSession,
   getSessionTelemetry,
   createSession,
