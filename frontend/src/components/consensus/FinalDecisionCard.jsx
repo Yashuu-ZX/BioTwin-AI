@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle, AlertTriangle, Clock, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { CheckCircle, AlertTriangle, Clock, ArrowRight, Pill, Activity, Sparkles, Database, ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
  * FinalDecisionCard - Displays the consensus result
@@ -7,6 +7,7 @@ import { CheckCircle, AlertTriangle, Clock, ArrowRight } from 'lucide-react';
  */
 
 export default function FinalDecisionCard({ consensus, status }) {
+  const [expanded, setExpanded] = useState(false);
   // Not yet reached consensus
   if (!consensus || status === 'idle') {
     return (
@@ -75,13 +76,83 @@ export default function FinalDecisionCard({ consensus, status }) {
           <div className="flex items-start gap-2 p-3 bg-amber-100 rounded-lg mb-4">
             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <span className="text-xs text-amber-800">
-              HERA Guardian adjusted the original recommendation due to budget or safety constraints.
+              {consensus.vetoReason || 'HERA Guardian adjusted the original recommendation due to budget or safety constraints.'}
             </span>
           </div>
         )}
 
+        {/* AI/Mock Indicator */}
+        <div className={`flex items-center gap-1.5 mb-4 px-2 py-1 rounded-md text-xs w-fit ${
+          consensus.aiGenerated 
+            ? 'bg-violet-100 text-violet-700' 
+            : 'bg-slate-100 text-slate-600'
+        }`}>
+          {consensus.aiGenerated ? (
+            <>
+              <Sparkles className="w-3 h-3" />
+              <span>AI-Generated Recommendation</span>
+            </>
+          ) : (
+            <>
+              <Database className="w-3 h-3" />
+              <span>Rule-Based Analysis</span>
+            </>
+          )}
+        </div>
+
+        {/* Medications Section */}
+        {consensus.medications && consensus.medications.length > 0 && (
+          <div className="mb-4">
+            <button 
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors"
+            >
+              <Pill className="w-3.5 h-3.5" />
+              <span>Medications ({consensus.medications.length})</span>
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            
+            {expanded && (
+              <div className="mt-2 space-y-2">
+                {consensus.medications.map((med, idx) => (
+                  <div key={idx} className="p-2 bg-white/60 rounded-lg border border-slate-200/50">
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm font-medium text-slate-800">{med.name}</span>
+                      <span className="text-xs text-slate-500">{med.dose}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {med.frequency} {med.duration && `• ${med.duration}`}
+                    </div>
+                    {med.notes && (
+                      <p className="text-xs text-slate-400 mt-1 italic">{med.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Monitoring Section */}
+        {expanded && consensus.monitoring && consensus.monitoring.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-600 mb-2">
+              <Activity className="w-3.5 h-3.5" />
+              <span>Monitoring Required</span>
+            </div>
+            <ul className="space-y-1">
+              {consensus.monitoring.map((item, idx) => (
+                <li key={idx} className="text-xs text-slate-600 flex items-start gap-1.5">
+                  <span className="text-emerald-500 mt-0.5">•</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Stats Row */}
-        <div className="flex items-center gap-4 pt-3 border-t border-slate-200/50">
+        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-slate-200/50">
           {consensus.confidence && (
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500">Confidence:</span>
@@ -94,6 +165,20 @@ export default function FinalDecisionCard({ consensus, status }) {
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500">Rounds:</span>
               <span className="text-sm font-medium text-slate-700">{consensus.rounds}</span>
+            </div>
+          )}
+          {consensus.consensusLevel && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Agreement:</span>
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                consensus.consensusLevel === 'Full' 
+                  ? 'bg-emerald-200 text-emerald-800' 
+                  : consensus.consensusLevel === 'Majority'
+                    ? 'bg-blue-200 text-blue-800'
+                    : 'bg-amber-200 text-amber-800'
+              }`}>
+                {consensus.consensusLevel}
+              </span>
             </div>
           )}
         </div>

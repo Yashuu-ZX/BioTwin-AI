@@ -85,7 +85,7 @@ export const startNegotiationSync = async (patientId, options = {}) => {
     patientId,
     ...options
   }, {
-    timeout: 120000 // 2 minute timeout for sync negotiation
+    timeout: 180000 // 3 minute timeout for AI-powered negotiation
   });
   return response.data;
 };

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Activity, Play, RotateCcw, ArrowLeft, Zap } from 'lucide-react';
-import apiClient, { startNegotiation, injectIntervention } from '../api/apiClient';
+import apiClient, { startNegotiation, startNegotiationSync, injectIntervention } from '../api/apiClient';
 import useAgentTelemetry from '../hooks/useAgentTelemetry';
 
 // Components
@@ -213,12 +213,23 @@ export default function ConsensusWorkspace() {
     if (event.type === 'consensus_reached') {
       Object.keys(agentStates).forEach(k => setAgentStates(prev => ({ ...prev, [k]: 'consensus' })));
       addMessage({ timestamp, agent: 'coordinator', type: 'consensus', message: 'Consensus achieved.' });
+      
+      // Extract consensus data from the backend event structure
+      const consensusData = event.consensus || {};
       setConsensus({
-        protocol: event.recommendation,
-        reasoning: event.reasoning,
-        confidence: Math.round((event.consensusScore || 0.85) * 100),
-        rounds: event.rounds,
-        hasVeto: event.hasVeto,
+        protocol: consensusData.recommendedProtocol || event.recommendation || 'Treatment Protocol',
+        reasoning: consensusData.rationale || consensusData.protocolDetails || event.reasoning,
+        confidence: Math.round((consensusData.confidence || event.consensusScore || 0.85) * 100),
+        rounds: event.round || event.rounds,
+        hasVeto: consensusData.adjustedForConstraints || event.hasVeto,
+        vetoReason: consensusData.adjustmentReason,
+        medications: consensusData.medications || [],
+        monitoring: consensusData.monitoring || [],
+        precautions: consensusData.precautions || [],
+        consensusLevel: consensusData.consensusLevel,
+        agentAgreement: consensusData.agentAgreement,
+        aiGenerated: consensusData.aiGenerated,
+        mockGenerated: consensusData.mockGenerated,
         action: 'Apply to Treatment Plan'
       });
       setStatus('consensus');
@@ -252,22 +263,112 @@ export default function ConsensusWorkspace() {
     addMessage({ timestamp: formatTimestamp(), agent: 'system', type: 'system', message: 'Initializing multi-agent consensus protocol...' });
     
     try {
-      if (!demoMode) {
-        const result = await startNegotiation(patientId, { maxRounds: 5, consensusThreshold: 0.7 });
-        setSessionId(result.sessionId);
-        subscribe(result.sessionId);
-      }
-      setStatus('running');
-      
-      if (demoMode || !isConnected) {
+      if (demoMode) {
+        setStatus('running');
         runDemoSimulation();
+        return;
       }
-    } catch {
+      
+      // Use sync API to ensure we get the full result including consensus
+      setStatus('running');
+      addMessage({ timestamp: formatTimestamp(), agent: 'system', type: 'system', message: 'Connecting to AI agents...' });
+      
+      const result = await startNegotiationSync(patientId, { maxRounds: 5, consensusThreshold: 0.7 });
+      setSessionId(result.sessionId);
+      
+      // Process telemetry events to show agent activity
+      if (result.telemetry && result.telemetry.length > 0) {
+        processTelemetryEvents(result.telemetry);
+      }
+      
+      // Process the returned consensus
+      if (result.consensusReached && result.consensus) {
+        const consensusData = result.consensus;
+        
+        // Update agent states to show consensus
+        setAgentStates({ geneticist: 'consensus', pharmacologist: 'consensus', endocrinologist: 'consensus', hera: 'consensus' });
+        
+        // Add final consensus message
+        addMessage({ 
+          timestamp: formatTimestamp(), 
+          agent: 'coordinator', 
+          type: 'consensus', 
+          message: `Consensus achieved: ${consensusData.recommendedProtocol || 'Treatment Protocol'}` 
+        });
+        
+        // Set the consensus state with all the data
+        setConsensus({
+          protocol: consensusData.recommendedProtocol || 'Treatment Protocol',
+          reasoning: consensusData.rationale || consensusData.protocolDetails,
+          confidence: Math.round((consensusData.confidence || 0.85) * 100),
+          rounds: result.session?.rounds || 1,
+          hasVeto: consensusData.adjustedForConstraints,
+          vetoReason: consensusData.adjustmentReason,
+          medications: consensusData.medications || [],
+          monitoring: consensusData.monitoring || [],
+          precautions: consensusData.precautions || [],
+          consensusLevel: consensusData.consensusLevel,
+          agentAgreement: consensusData.agentAgreement,
+          aiGenerated: consensusData.aiGenerated,
+          mockGenerated: consensusData.mockGenerated,
+          action: 'Apply to Treatment Plan'
+        });
+        setStatus('consensus');
+      } else {
+        // No consensus reached
+        addMessage({ timestamp: formatTimestamp(), agent: 'system', type: 'warning', message: 'Agents could not reach consensus. Please review individual recommendations.' });
+        setStatus('no_consensus');
+      }
+      
+    } catch (error) {
+      console.error('Negotiation error:', error);
+      // Fall back to demo mode
       setDemoMode(true);
       setStatus('running');
+      addMessage({ timestamp: formatTimestamp(), agent: 'system', type: 'warning', message: 'Using demo mode (API unavailable)' });
       runDemoSimulation();
     }
-  }, [patientId, demoMode, clearEvents, subscribe, isConnected]);
+  }, [patientId, demoMode, clearEvents]);
+
+  // Process telemetry events from sync API response
+  function processTelemetryEvents(telemetry) {
+    telemetry.forEach(event => {
+      const timestamp = new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: true, hour: 'numeric', minute: '2-digit' });
+      
+      // Add agent proposal messages
+      if (event.type === 'agent_proposal' && event.agent) {
+        const proposal = event.proposal;
+        const message = proposal?.recommendation || event.message || `${event.agent} analysis complete`;
+        addMessage({ timestamp, agent: event.agent, type: 'proposal', message });
+      }
+      
+      // Add agent start/complete events
+      if (event.type === 'agent_start' && event.agent) {
+        setAgentStates(prev => ({ ...prev, [event.agent]: 'deliberating' }));
+      }
+      
+      if (event.type === 'agent_complete' && event.agent) {
+        setAgentStates(prev => ({ ...prev, [event.agent]: 'ready' }));
+      }
+      
+      // Add veto events
+      if (event.type === 'veto_issued') {
+        setAgentStates(prev => ({ ...prev, hera: 'blocked' }));
+        addMessage({ timestamp, agent: 'hera', type: 'veto', message: event.reason || 'HERA issued a veto' });
+        shiftTrajectory('conservative');
+      }
+      
+      // Add phase messages
+      if (event.type === 'phase_start' && event.message) {
+        addMessage({ timestamp, agent: 'system', type: 'system', message: event.message });
+      }
+      
+      // Add consensus_generated events (shows the protocol before final consensus)
+      if (event.type === 'consensus_generated' && event.message) {
+        addMessage({ timestamp, agent: 'coordinator', type: 'info', message: event.message });
+      }
+    });
+  }
 
   function runDemoSimulation() {
     DEMO_RESPONSES.forEach((resp, i) => {

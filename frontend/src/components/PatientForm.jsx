@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../api/apiClient';
-import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot, CheckCircle2, AlertTriangle, BrainCircuit, Sparkles } from 'lucide-react';
+import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot, CheckCircle2, AlertTriangle, BrainCircuit, Sparkles, Shuffle } from 'lucide-react';
+import { getRandomPatient } from '../data/patientDataset';
 
 const steps = [
   { id: 1, title: 'Basic Profile', icon: User },
@@ -69,41 +70,33 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
   }));
 
   const autoFill = useCallback(() => {
+    // Get a random patient from the 100-patient dataset
+    const randomPatient = getRandomPatient();
+    
     setFormData({
-      name: 'Robert Miller', age: 62, gender: 'Male', height: 175, weight: 88, bloodGroup: 'O+',
-      symptoms: ['Chest Pain', 'Shortness of Breath'], symptomSeverity: 8, symptomDuration: 3,
-      medicalHistory: { conditions: ['Hypertension', 'Type 2 Diabetes'], surgeries: 'Appendectomy (2010)', familyHistory: 'Father had early CAD.' },
-      medications: [{ name: 'Metformin', dosage: '500mg', frequency: 'Twice daily' }, { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily' }],
-      biomarkers: {
-        genomicVariant: 'CYP2C19 reduced metabolizer',
-        therapyTarget: 'Cardio-metabolic risk modulation',
-        expressionLevel: 'Elevated inflammatory burden',
-        resistanceMarker: 'Statin-associated intolerance risk',
-        immuneProfile: 'Chronic low-grade inflammation',
-        genomics: {
-          variants: [{ gene: 'CYP2C19', mutation: '*2/*2', significance: 'Poor metabolizer' }],
-          tumorMutationBurden: '',
-          microsatelliteStatus: 'Unknown',
-          pdL1Expression: '',
-          herStatus: 'Unknown',
-          hormoneReceptors: { er: 'Unknown', pr: 'Unknown' }
-        },
-        pharmacogenomics: {
-          cyp2d6: 'Normal',
-          cyp2c19: 'Poor Metabolizer',
-          cyp2c9: 'Normal',
-          vkorc1: 'Normal',
-          tpmt: 'Normal'
-        }
-      },
-      allergies: [{ allergen: 'Penicillin', reaction: 'Rash', severity: 'Moderate' }],
-      lifestyle: { smoking: 'Past', alcohol: 'Occasionally', exercise: 'Rarely', diet: 'Poor' },
-      vitals: { heartRate: 88, bpSystolic: 145, bpDiastolic: 92, sugar: 142, spO2: 95, temperature: 98.4 },
-      disease: 'Cardiac',
-      treatmentGoal: 'Fast Recovery'
+      name: randomPatient.name,
+      age: randomPatient.age,
+      gender: randomPatient.gender,
+      height: randomPatient.height,
+      weight: randomPatient.weight,
+      bloodGroup: randomPatient.bloodGroup,
+      symptoms: randomPatient.symptoms,
+      symptomSeverity: randomPatient.symptomSeverity,
+      symptomDuration: randomPatient.symptomDuration,
+      medicalHistory: randomPatient.medicalHistory,
+      medications: randomPatient.medications,
+      biomarkers: randomPatient.biomarkers,
+      allergies: randomPatient.allergies,
+      lifestyle: randomPatient.lifestyle,
+      vitals: randomPatient.vitals,
+      disease: randomPatient.disease,
+      treatmentGoal: randomPatient.treatmentGoal
     });
     setCurrentStep(9);
-    setSubmitStatus({ type: 'info', message: 'Demo patient loaded. Review the profile and generate the twin model.' });
+    setSubmitStatus({ 
+      type: 'info', 
+      message: `Loaded: ${randomPatient.name} (${randomPatient.age}yo ${randomPatient.gender}, ${randomPatient.disease}). Click again for a different patient.` 
+    });
   }, []);
 
   useEffect(() => {
@@ -460,9 +453,9 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
                <p className={`text-xs mt-1 uppercase tracking-wider ${mutedTextClass}`}>Layer 1 Collection</p>
              </div>
             
-            {currentStep === 1 && role !== 'patient' && (
+            {role !== 'patient' && (
                <button type="button" onClick={autoFill} className={`text-xs px-3 py-1.5 rounded-full transition-all flex items-center gap-1 font-semibold ${darkMode ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30' : 'bg-lime-100 text-lime-700 border border-lime-200 hover:bg-lime-200'}`}>
-                 Auto-fill Sample
+                 <Shuffle size={12} /> Random Patient
                </button>
             )}
           </div>

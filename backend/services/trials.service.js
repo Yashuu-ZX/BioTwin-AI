@@ -7,8 +7,24 @@
  * - Prior treatment history
  * - Demographics and performance status
  * 
- * This is a mock service simulating integration with ClinicalTrials.gov
+ * Supports AI-enhanced matching when OpenAI/OpenRouter is configured
  */
+
+require('dotenv').config();
+
+// Check for AI integration
+let openaiClient = null;
+let AI_ENABLED = false;
+
+try {
+  if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
+    openaiClient = require('./ai/openaiClient');
+    AI_ENABLED = true;
+    console.log('✅ AI-enhanced clinical trial matching enabled');
+  }
+} catch (error) {
+  console.log('⚠️ AI not available for trial matching - using rule-based matching');
+}
 
 // Mock clinical trials database
 const CLINICAL_TRIALS = [
@@ -189,14 +205,16 @@ const CLINICAL_TRIALS = [
 
 /**
  * Match a patient to eligible clinical trials
+ * Uses AI-enhanced matching when available for better relevance scoring
  * @param {Object} patient - Full patient object
  * @returns {Object} Matching results with ranked trials
  */
-function matchPatientToTrials(patient) {
+async function matchPatientToTrials(patient) {
   const matches = [];
   const partialMatches = [];
   const ineligible = [];
 
+  // First, run rule-based eligibility check
   for (const trial of CLINICAL_TRIALS) {
     const eligibilityResult = checkTrialEligibility(patient, trial);
     
@@ -227,6 +245,16 @@ function matchPatientToTrials(patient) {
   matches.sort((a, b) => b.matchScore - a.matchScore);
   partialMatches.sort((a, b) => b.matchScore - a.matchScore);
 
+  // If AI is available and we have matches, enhance with AI reasoning
+  let aiEnhancement = null;
+  if (AI_ENABLED && openaiClient && matches.length > 0) {
+    try {
+      aiEnhancement = await getAITrialRecommendation(patient, matches.slice(0, 5));
+    } catch (error) {
+      console.warn('AI trial enhancement failed:', error.message);
+    }
+  }
+
   return {
     patientId: patient.patientId,
     patientName: patient.name,
@@ -235,9 +263,91 @@ function matchPatientToTrials(patient) {
     eligibleTrials: matches,
     partialMatches: partialMatches.slice(0, 5),  // Top 5 partial matches
     ineligibleCount: ineligible.length,
+    aiEnhancement: aiEnhancement,
+    aiEnabled: AI_ENABLED,
     searchTimestamp: new Date().toISOString(),
     disclaimer: 'Trial matching is for informational purposes only. Confirm eligibility with study coordinators.'
   };
+}
+
+/**
+ * AI-enhanced trial recommendation
+ * Provides personalized reasoning for why specific trials are good matches
+ */
+async function getAITrialRecommendation(patient, topTrials) {
+  const OpenAI = require('openai');
+  
+  const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+  
+  const openai = new OpenAI({
+    apiKey: apiKey,
+    baseURL: useOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1',
+    defaultHeaders: useOpenRouter ? {
+      'HTTP-Referer': 'https://biotwin.ai',
+      'X-Title': 'BioTwin Clinical Trials'
+    } : {}
+  });
+  
+  const MODEL = process.env.AI_MODEL || 'openai/gpt-4o-mini';
+  
+  const patientSummary = `
+Patient: ${patient.name || 'Unknown'}, Age: ${patient.age || 'Unknown'}
+Disease: ${patient.disease || 'Unknown'}
+Conditions: ${patient.medicalHistory?.conditions?.join(', ') || 'None listed'}
+Genomic Markers: ${patient.biomarkers?.genomicVariant || 'Not assessed'}
+MSI Status: ${patient.biomarkers?.genomics?.microsatelliteStatus || 'Unknown'}
+HER2 Status: ${patient.biomarkers?.genomics?.herStatus || 'Unknown'}
+Current Medications: ${patient.medications?.map(m => m.name).filter(Boolean).join(', ') || 'None listed'}
+`;
+
+  const trialsContext = topTrials.map(t => `
+- ${t.nctId}: ${t.title}
+  Phase: ${t.phase}, Status: ${t.status}
+  Interventions: ${t.interventions.join(', ')}
+  Match Score: ${t.matchScore}
+  Match Reasons: ${t.matchReasons?.join('; ') || 'N/A'}
+`).join('\n');
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0.3,
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a clinical trials specialist AI. Given a patient profile and matched clinical trials, provide a brief personalized recommendation explaining:
+1. Which trial(s) are the best fit and why
+2. Key considerations for this specific patient
+3. Any potential concerns or prerequisites
+
+Be specific to the patient's actual conditions and markers. Keep response concise.
+
+Output JSON format:
+{
+  "topRecommendation": {
+    "nctId": "trial ID",
+    "reasoning": "2-3 sentences explaining why this is the best match"
+  },
+  "patientSpecificConsiderations": ["list of considerations specific to this patient"],
+  "nextSteps": ["actionable next steps for the patient"],
+  "confidenceLevel": "high|medium|low"
+}`
+        },
+        {
+          role: 'user',
+          content: `Patient Profile:\n${patientSummary}\n\nMatched Trials:\n${trialsContext}\n\nProvide your recommendation as JSON.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    return JSON.parse(completion.choices[0].message.content);
+  } catch (error) {
+    console.error('AI trial recommendation error:', error);
+    throw error;
+  }
 }
 
 /**
