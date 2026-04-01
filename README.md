@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/logo.png" alt="BioTwin AI Logo" width="120" height="120" />
+  <img src="screenshots/1.jpeg" alt="BioTwin AI" width="100%" />
 </p>
 
 <h1 align="center">BioTwin AI</h1>
@@ -34,12 +34,6 @@
 
 The platform implements a sophisticated **6-layer architecture** designed for clinical decision support, featuring four specialized AI agents that collaborate to generate treatment recommendations while respecting economic constraints and patient-specific factors.
 
-<p align="center">
-  <img src="screenshots/1_hero_dashboard.png" alt="BioTwin Dashboard Overview" width="100%" />
-  <br>
-  <em>Figure 1: BioTwin Clinical Dashboard - Multi-Agent Consensus Overview</em>
-</p>
-
 ---
 
 ## Key Features
@@ -57,34 +51,14 @@ The platform implements a sophisticated **6-layer architecture** designed for cl
 
 ### Advanced AI Features
 
-<table>
-<tr>
-<td width="50%">
-
-#### 1. Interactive HITL Steering
-Doctors can inject constraints mid-deliberation, and agents dynamically acknowledge and re-negotiate their recommendations.
-
-#### 2. Dynamic Agent Swarming
-Agents spawn sub-agents (specialists) when case complexity demands additional expertise.
-
-#### 3. Live Tool-Use Overlay
-Real-time visualization of agents querying external databases (PharmGKB, PubMed, DrugBank).
-
-</td>
-<td width="50%">
-
-#### 4. Consensus Gravity Graph
-Live 2D visualization showing multi-agent debate and consensus formation in real-time.
-
-#### 5. Agent Memory & Reflection
-Episodic memory system where agents learn from past cases and proactively apply that knowledge.
-
-#### 6. Economic Guardian (HERA)
-Dedicated agent enforcing budget constraints and ensuring treatment accessibility.
-
-</td>
-</tr>
-</table>
+| Feature | Description |
+|---------|-------------|
+| **Interactive HITL Steering** | Doctors can inject constraints mid-deliberation, and agents dynamically acknowledge and re-negotiate |
+| **Dynamic Agent Swarming** | Agents spawn sub-agents (specialists) when case complexity demands additional expertise |
+| **Live Tool-Use Overlay** | Real-time visualization of agents querying external databases (PharmGKB, PubMed, DrugBank) |
+| **Consensus Gravity Graph** | Live 2D visualization showing multi-agent debate and consensus formation |
+| **Agent Memory & Reflection** | Episodic memory system where agents learn from past cases |
+| **Economic Guardian (HERA)** | Dedicated agent enforcing budget constraints and ensuring treatment accessibility |
 
 ---
 
@@ -124,9 +98,9 @@ Dedicated agent enforcing budget constraints and ensuring treatment accessibilit
 | **Layer 6** | Explainable AI | Feature importance analysis, what-if scenarios, and transparent reasoning |
 
 <p align="center">
-  <img src="screenshots/2_architecture_diagram.png" alt="System Architecture" width="100%" />
+  <img src="screenshots/2.jpeg" alt="System Architecture" width="100%" />
   <br>
-  <em>Figure 2: BioTwin 6-Layer Architecture Diagram</em>
+  <em>Figure 1: BioTwin System Architecture</em>
 </p>
 
 ---
@@ -145,11 +119,11 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
             ▼                       ▼                       ▼
 ┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
 │    GENETICIST     │   │  PHARMACOLOGIST   │   │  ENDOCRINOLOGIST  │
-│        Agent      │   │       Agent       │   │       Agent       │
+│       Agent       │   │       Agent       │   │       Agent       │
 │                   │   │                   │   │                   │
-│  • Pharmacogenomics│   │  • Drug Interactions│   │  • Metabolic Analysis│
-│  • Variant Analysis│   │  • Dosing Optimization│   │  • Glucose Management│
-│  • Genetic Risks  │   │  • Safety Assessment│   │  • Hormonal Factors│
+│ • Pharmacogenomics│   │ • Drug Interactions│   │ • Metabolic Analysis│
+│ • Variant Analysis│   │ • Dosing Optimization│  │ • Glucose Management│
+│ • Genetic Risks   │   │ • Safety Assessment│   │ • Hormonal Factors │
 └─────────┬─────────┘   └─────────┬─────────┘   └─────────┬─────────┘
           │                       │                       │
           └───────────────────────┼───────────────────────┘
@@ -173,20 +147,17 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
 ```
 
 <p align="center">
-  <img src="screenshots/3_agent_consensus.png" alt="Multi-Agent Consensus" width="100%" />
+  <img src="screenshots/3.jpeg" alt="Multi-Agent Consensus" width="100%" />
   <br>
-  <em>Figure 3: Multi-Agent AI Consensus Protocol in Action</em>
+  <em>Figure 2: Multi-Agent AI Consensus Protocol</em>
 </p>
 
 ---
 
 ### Technology Stack
 
-<table>
-<tr>
-<td valign="top" width="50%">
-
 #### Backend
+
 | Technology | Purpose |
 |------------|---------|
 | **Node.js 18+** | Runtime environment |
@@ -198,10 +169,8 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
 | **PDFKit** | Report generation |
 | **Helmet** | Security middleware |
 
-</td>
-<td valign="top" width="50%">
-
 #### Frontend
+
 | Technology | Purpose |
 |------------|---------|
 | **React 19** | UI framework |
@@ -211,10 +180,6 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
 | **Recharts** | Data visualization |
 | **Axios** | HTTP client |
 | **Lucide React** | Icon library |
-
-</td>
-</tr>
-</table>
 
 ---
 
@@ -375,62 +340,64 @@ npm run build
 npm run preview
 ```
 
-<p align="center">
-  <img src="screenshots/4_patient_intake.png" alt="Patient Intake Form" width="100%" />
-  <br>
-  <em>Figure 4: 9-Step Precision Patient Intake Form</em>
-</p>
-
 ---
 
 ## Screenshots
 
-### 1. Home Screen & Demo Cases
+### 1. Patient Intake Form
 
 <p align="center">
-  <img src="screenshots/5_home_screen.png" alt="Home Screen" width="100%" />
+  <img src="screenshots/4.jpeg" alt="Patient Intake Form" width="100%" />
   <br>
-  <em>Figure 5: BioTwin Home Screen with Quick-Launch Demo Cases</em>
+  <em>Figure 3: 9-Step Precision Patient Intake Form</em>
 </p>
 
-### 2. Patient Profile & Digital Twin
+### 2. Clinical Dashboard
 
 <p align="center">
-  <img src="screenshots/6_patient_profile.png" alt="Patient Profile" width="100%" />
+  <img src="screenshots/5.jpeg" alt="Clinical Dashboard" width="100%" />
   <br>
-  <em>Figure 6: Comprehensive Patient Profile with Vitals and Biomarkers</em>
+  <em>Figure 4: Main Clinical Dashboard with Agent Overview</em>
 </p>
 
-### 3. Agent Deliberation Feed
+### 3. Patient Profile
 
 <p align="center">
-  <img src="screenshots/7_agent_feed.png" alt="Agent Deliberation" width="100%" />
+  <img src="screenshots/6.jpeg" alt="Patient Profile" width="100%" />
   <br>
-  <em>Figure 7: Real-time Multi-Agent Deliberation with Tool Usage</em>
+  <em>Figure 5: Comprehensive Patient Profile with Vitals and Biomarkers</em>
 </p>
 
-### 4. HERA Guardian Veto
+### 4. Agent Deliberation
 
 <p align="center">
-  <img src="screenshots/8_hera_veto.png" alt="HERA Veto" width="100%" />
+  <img src="screenshots/7.jpeg" alt="Agent Deliberation" width="100%" />
   <br>
-  <em>Figure 8: HERA Guardian Enforcing Budget Constraints</em>
+  <em>Figure 6: Real-time Multi-Agent Deliberation with Tool Usage</em>
 </p>
 
-### 5. Outcome Trajectory
+### 5. HERA Guardian
 
 <p align="center">
-  <img src="screenshots/9_trajectory_chart.png" alt="Outcome Trajectory" width="100%" />
+  <img src="screenshots/8.jpeg" alt="HERA Guardian" width="100%" />
   <br>
-  <em>Figure 9: Treatment Outcome Trajectory Comparison</em>
+  <em>Figure 7: HERA Guardian Enforcing Budget Constraints</em>
 </p>
 
-### 6. Final Recommendation
+### 6. Outcome Trajectory
 
 <p align="center">
-  <img src="screenshots/10_final_recommendation.png" alt="Final Recommendation" width="100%" />
+  <img src="screenshots/9.jpeg" alt="Outcome Trajectory" width="100%" />
   <br>
-  <em>Figure 10: Consensus-Driven Final Treatment Recommendation</em>
+  <em>Figure 8: Treatment Outcome Trajectory Comparison</em>
+</p>
+
+### 7. Final Recommendation
+
+<p align="center">
+  <img src="screenshots/10.jpeg" alt="Final Recommendation" width="100%" />
+  <br>
+  <em>Figure 9: Consensus-Driven Final Treatment Recommendation</em>
 </p>
 
 ---
@@ -557,12 +524,6 @@ The platform includes GitHub Actions CI/CD pipeline for automated deployment:
 - Health check verification
 ```
 
-<p align="center">
-  <img src="screenshots/11_deployment_architecture.png" alt="Deployment Architecture" width="100%" />
-  <br>
-  <em>Figure 11: Production Deployment Architecture</em>
-</p>
-
 ---
 
 ## Clinical Workflow
@@ -617,7 +578,7 @@ The platform includes GitHub Actions CI/CD pipeline for automated deployment:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please follow these steps:
 
 ```bash
 # Fork the repository
@@ -652,13 +613,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   <strong>Built with precision for personalized medicine</strong>
   <br><br>
-  <a href="https://github.com/yourusername/bio_twin/issues">Report Bug</a>
-  •
-  <a href="https://github.com/yourusername/bio_twin/issues">Request Feature</a>
-  •
+  <a href="https://github.com/yourusername/bio_twin/issues">Report Bug</a> •
+  <a href="https://github.com/yourusername/bio_twin/issues">Request Feature</a> •
   <a href="https://github.com/yourusername/bio_twin/discussions">Discussions</a>
-</p>
-
-<p align="center">
-  <img src="screenshots/12_footer_banner.png" alt="BioTwin Footer" width="100%" />
 </p>
