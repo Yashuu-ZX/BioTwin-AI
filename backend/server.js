@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const http = require('http');
 const connectDB = require('./config/db');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+
+// Create HTTP server for WebSocket support
+const httpServer = http.createServer(app);
 
 // Database connection status (will be set after async connection)
 let dbConnected = false;
@@ -65,17 +69,46 @@ app.use('/api', apiLimiter);
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
   : (process.env.NODE_ENV === 'production' 
-      ? ['https://biotwin-azure.com', 'https://hospital-intranet.gov'] 
+      ? [
+          'https://biotwin-azure.com', 
+          'https://hospital-intranet.gov',
+          // Vercel deployments
+          'https://biotwin.vercel.app',
+          'https://biotwin-ai.vercel.app',
+          'https://bio-twin.vercel.app',
+          'https://bio-twin-ai.vercel.app'
+        ] 
       : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']);
 
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? allowedOrigins 
-    : true, // Allow all origins in development
+// Dynamic CORS check for Vercel preview deployments
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check static allowed origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow any Vercel preview deployment
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
   maxAge: 86400 // Cache preflight for 24 hours
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Body parser with size limits
 app.use(express.json({ limit: '10mb' }));
@@ -106,6 +139,7 @@ const explainRoutes = require('./routes/explain.routes');
 const pharmacologyRoutes = require('./routes/pharmacology.routes');
 const alertsRoutes = require('./routes/alerts.routes');
 const trialsRoutes = require('./routes/trials.routes');
+const negotiationRoutes = require('./routes/negotiation.routes');
 
 app.use('/api/patient', patientRoutes);
 app.use('/api', simulationRoutes); // /api/simulate and /api/predict
@@ -115,14 +149,25 @@ app.use('/api/explain', explainRoutes); // Layer 6 Advanced Intelligence & XAI
 app.use('/api/pharmacology', pharmacologyRoutes); // Drug interactions & PK/PD modeling
 app.use('/api/alerts', alertsRoutes); // Clinical alerts & deterioration monitoring
 app.use('/api/trials', trialsRoutes); // Clinical trial matching
+app.use('/api/negotiate', negotiationRoutes); // Multi-round agent negotiation protocol
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const telemetryServer = require('./websocket/telemetryServer');
   res.json({ 
     status: "healthy",
     service: "BioTwin AI API",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    features: {
+      agentNegotiation: true,
+      websocketTelemetry: true,
+      humanInTheLoop: true
+    },
+    websocket: {
+      path: '/ws/telemetry',
+      connectedClients: telemetryServer.getClientCount()
+    }
   });
 });
 
@@ -194,15 +239,21 @@ const startServer = async () => {
     logger.warn('Database connection failed, continuing with in-memory store', { error: err.message });
   }
   
-  const server = app.listen(PORT, () => {
+  // Initialize WebSocket server for real-time telemetry
+  const telemetryServer = require('./websocket/telemetryServer');
+  telemetryServer.initializeWebSocket(httpServer);
+  logger.info('WebSocket telemetry server initialized', { path: '/ws/telemetry' });
+  
+  httpServer.listen(PORT, () => {
     logger.info(`BioTwin API Server started`, { 
       port: PORT, 
       env: process.env.NODE_ENV || 'development',
-      database: dbConnected ? 'MongoDB' : 'In-Memory MockDB'
+      database: dbConnected ? 'MongoDB' : 'In-Memory MockDB',
+      features: ['Agent Negotiation', 'WebSocket Telemetry', 'HITL Interventions']
     });
   });
   
-  return server;
+  return httpServer;
 };
 
 // Initialize server

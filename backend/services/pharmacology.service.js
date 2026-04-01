@@ -9,7 +9,37 @@
  * 2. Checking drug-allergy contraindications
  * 3. Adjusting doses based on renal/hepatic function
  * 4. Providing pharmacogenomic dosing guidance
+ * 
+ * Supports AI-enhanced analysis when OpenAI/OpenRouter is configured
  */
+
+require('dotenv').config();
+
+// Check for AI integration
+let AI_ENABLED = false;
+let openaiInstance = null;
+
+try {
+  if (process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY) {
+    const OpenAI = require('openai');
+    const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    
+    openaiInstance = new OpenAI({
+      apiKey: apiKey,
+      baseURL: useOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1',
+      defaultHeaders: useOpenRouter ? {
+        'HTTP-Referer': 'https://biotwin.ai',
+        'X-Title': 'BioTwin Pharmacology'
+      } : {}
+    });
+    
+    AI_ENABLED = true;
+    console.log('✅ AI-enhanced pharmacology analysis available');
+  }
+} catch (error) {
+  console.log('⚠️ AI not available for pharmacology - using rule-based analysis');
+}
 
 // Comprehensive drug interaction database (expanded)
 const DRUG_INTERACTIONS = {
@@ -531,20 +561,44 @@ function getPharmacogenomicGuidance(medications, pharmacogenomics) {
 
 /**
  * Comprehensive pharmacology analysis for a patient
+ * Uses AI enhancement when available for medications not in the database
  * @param {Object} patient - Full patient object
  * @returns {Object} Complete pharmacology analysis
  */
-function analyzePatientPharmacology(patient) {
+async function analyzePatientPharmacology(patient) {
   const medications = patient.medications || [];
   const allergies = patient.allergies || [];
   const gfr = patient.biomarkers?.labBiomarkers?.gfr?.value;
   const pharmacogenomics = patient.biomarkers?.pharmacogenomics || {};
   
-  // Run all analyses
+  // Run all rule-based analyses
   const drugInteractions = checkDrugInteractions(medications);
   const allergyCheck = checkAllergyContraindications(medications, allergies);
   const renalAdjustments = getrenalDoseAdjustments(medications, gfr);
   const pgxGuidance = getPharmacogenomicGuidance(medications, pharmacogenomics);
+  
+  // AI enhancement for unknown drugs or complex interactions
+  let aiEnhancement = null;
+  if (AI_ENABLED && openaiInstance && medications.length > 0) {
+    try {
+      // Check if there are medications not in our database
+      const knownDrugs = Object.keys(DRUG_INTERACTIONS).map(d => d.toLowerCase());
+      const unknownMeds = medications.filter(m => 
+        m.name && !knownDrugs.some(kd => m.name.toLowerCase().includes(kd))
+      );
+      
+      if (unknownMeds.length > 0 || medications.length > 4) {
+        aiEnhancement = await getAIPharmacologyAnalysis(patient, {
+          drugInteractions,
+          allergyCheck,
+          renalAdjustments,
+          pgxGuidance
+        });
+      }
+    } catch (error) {
+      console.warn('AI pharmacology enhancement failed:', error.message);
+    }
+  }
   
   // Aggregate critical alerts
   const criticalAlerts = [];
@@ -600,8 +654,88 @@ function analyzePatientPharmacology(patient) {
     renalAdjustments,
     pharmacogenomicGuidance: pgxGuidance,
     monitoringPlan: generateMonitoringPlan(drugInteractions, medications),
+    aiEnhancement: aiEnhancement,
+    aiEnabled: AI_ENABLED,
     timestamp: new Date().toISOString()
   };
+}
+
+/**
+ * AI-enhanced pharmacology analysis for complex cases
+ */
+async function getAIPharmacologyAnalysis(patient, ruleBasedResults) {
+  const MODEL = process.env.AI_MODEL || 'openai/gpt-4o-mini';
+  
+  const medicationList = patient.medications?.map(m => 
+    `${m.name} ${m.dosage || ''} ${m.frequency || ''}`
+  ).filter(Boolean).join(', ');
+  
+  const allergyList = patient.allergies?.map(a => 
+    `${a.allergen} (${a.reaction || 'unknown reaction'})`
+  ).filter(Boolean).join(', ');
+  
+  const pgxInfo = patient.biomarkers?.pharmacogenomics || {};
+  const pgxSummary = Object.entries(pgxInfo)
+    .filter(([k, v]) => v && v !== 'Unknown')
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ') || 'Not tested';
+
+  try {
+    const completion = await openaiInstance.chat.completions.create({
+      model: MODEL,
+      temperature: 0.2,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a clinical pharmacist AI providing drug safety analysis. Given a patient's medication list, allergies, and pharmacogenomics, identify:
+1. Any additional drug interactions not captured by standard databases
+2. Unusual cross-reactivity concerns
+3. Dose optimization opportunities based on the full clinical picture
+4. Monitoring recommendations
+
+Focus on clinically significant findings. Be specific and evidence-based.
+
+Output JSON format:
+{
+  "additionalInteractions": [{"drugs": ["drug1", "drug2"], "concern": "description", "severity": "major|moderate|minor", "recommendation": "action"}],
+  "allergyInsights": ["specific concerns based on this patient's allergies"],
+  "doseOptimizations": [{"drug": "name", "suggestion": "recommendation", "rationale": "why"}],
+  "monitoringAdditions": ["additional monitoring specific to this patient"],
+  "overallAssessment": "1-2 sentence summary of key pharmacological concerns",
+  "confidenceLevel": "high|medium|low"
+}`
+        },
+        {
+          role: 'user',
+          content: `Patient: ${patient.name || 'Unknown'}, Age: ${patient.age || 'Unknown'}
+Conditions: ${patient.medicalHistory?.conditions?.join(', ') || 'None listed'}
+
+Current Medications: ${medicationList || 'None'}
+
+Allergies: ${allergyList || 'None documented'}
+
+Pharmacogenomics: ${pgxSummary}
+
+GFR: ${patient.biomarkers?.labBiomarkers?.gfr?.value || 'Unknown'} mL/min
+
+Rule-based analysis found:
+- ${ruleBasedResults.drugInteractions.interactions.length} drug interactions
+- ${ruleBasedResults.allergyCheck.contraindications.length} allergy contraindications
+- ${ruleBasedResults.renalAdjustments.adjustments.length} renal adjustments needed
+- ${ruleBasedResults.pgxGuidance.recommendations.length} pharmacogenomic recommendations
+
+Provide additional insights as JSON.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    return JSON.parse(completion.choices[0].message.content);
+  } catch (error) {
+    console.error('AI pharmacology analysis error:', error);
+    throw error;
+  }
 }
 
 // Helper functions
