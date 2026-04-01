@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="screenshots/1.jpeg" alt="BioTwin AI" width="100%" />
-</p>
-
 <h1 align="center">BioTwin AI</h1>
 
 <p align="center">
@@ -19,9 +15,9 @@
 
 <p align="center">
   <a href="#-key-features">Features</a> •
+  <a href="#-screenshots">Screenshots</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="#-screenshots">Screenshots</a> •
   <a href="#-api-reference">API</a> •
   <a href="#-deployment">Deployment</a>
 </p>
@@ -33,6 +29,80 @@
 **BioTwin AI** is an end-to-end personalized medicine platform that creates a **digital twin** of a patient, simulates treatment strategies using **multi-agent AI consensus**, explains risk drivers through **explainable AI (XAI)**, and continuously learns from real-world outcomes.
 
 The platform implements a sophisticated **6-layer architecture** designed for clinical decision support, featuring four specialized AI agents that collaborate to generate treatment recommendations while respecting economic constraints and patient-specific factors.
+
+---
+
+## Screenshots
+
+### 1. Home Screen - Platform Overview
+<p align="center">
+  <img src="screenshots/1.jpeg" alt="Home Screen - Platform Overview" width="100%" />
+  <br>
+  <em>Landing page showcasing the 6-layer system architecture with quick-launch demo cases for Cardiac, Oncology, and Metabolic conditions</em>
+</p>
+
+### 2. Patient Intake - 9-Step Precision Form
+<p align="center">
+  <img src="screenshots/2.jpeg" alt="Patient Intake Form" width="100%" />
+  <br>
+  <em>Comprehensive intake protocol capturing Basic Profile, Symptoms, Medical History, Medications, Lifestyle, Vitals, Biomarkers, Disease Mapping, and Treatment Goals</em>
+</p>
+
+### 3. Clinical Dashboard - Consensus Overview
+<p align="center">
+  <img src="screenshots/3.jpeg" alt="Clinical Dashboard Overview" width="100%" />
+  <br>
+  <em>Main dashboard displaying patient summary, all four AI agents with confidence scores, and the multi-agent consensus status</em>
+</p>
+
+### 4. Patient Profile - Complete Digital Twin
+<p align="center">
+  <img src="screenshots/4.jpeg" alt="Patient Profile" width="100%" />
+  <br>
+  <em>Detailed patient profile with demographics, vitals, genomic markers, socio-economic constraints, conditions, medications, lifestyle, and family history</em>
+</p>
+
+### 5. Geneticist Agent - Pharmacogenomic Analysis
+<p align="center">
+  <img src="screenshots/5.jpeg" alt="Geneticist Agent" width="100%" />
+  <br>
+  <em>Geneticist AI agent analyzing pharmacogenomic panel results, CYP2C19 genotype, drug metabolism predictions, and hereditary risk factors with 95% confidence</em>
+</p>
+
+### 6. Pharmacologist Agent - Drug Safety Review
+<p align="center">
+  <img src="screenshots/6.jpeg" alt="Pharmacologist Agent" width="100%" />
+  <br>
+  <em>Pharmacologist AI agent evaluating current medications, drug-drug interactions, renal function, and dosing recommendations with 92% confidence</em>
+</p>
+
+### 7. Endocrinologist Agent - Metabolic Assessment
+<p align="center">
+  <img src="screenshots/7.jpeg" alt="Endocrinologist Agent" width="100%" />
+  <br>
+  <em>Endocrinologist AI agent analyzing glucose levels, HbA1c trends, metabolic cascade risk, and cardiovascular factors with 88% confidence</em>
+</p>
+
+### 8. HERA Guardian - Economic Constraints & Veto Authority
+<p align="center">
+  <img src="screenshots/8.jpeg" alt="HERA Guardian Agent" width="100%" />
+  <br>
+  <em>HERA Guardian enforcing $150/month budget constraint, issuing VETO for expensive therapies, and mandating generic-only formulary with 100% confidence</em>
+</p>
+
+### 9. Outcome Trajectory - Projected Disease Path
+<p align="center">
+  <img src="screenshots/9.jpeg" alt="Outcome Trajectory" width="100%" />
+  <br>
+  <em>Trajectory visualization comparing baseline (declining) vs. consensus protocol (improving) with +20% projected improvement over 90 days</em>
+</p>
+
+### 10. Final Recommendation - Consensus Protocol
+<p align="center">
+  <img src="screenshots/10.jpeg" alt="Final Recommendation" width="100%" />
+  <br>
+  <em>Final consensus-driven treatment recommendation with live agent deliberation feed, 85% confidence, 4/4 agent agreement, and medication protocol</em>
+</p>
 
 ---
 
@@ -73,13 +143,13 @@ The platform implements a sophisticated **6-layer architecture** designed for cl
 │                                                                              │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
 │  │   LAYER 1   │    │   LAYER 2   │    │   LAYER 3   │    │   LAYER 4   │  │
-│  │   Patient   │───▶│   Digital   │───▶│  Clinical   │───▶│  Feedback   │  │
-│  │   Intake    │    │    Twin     │    │  Dashboard  │    │    Loop     │  │
+│  │   Patient   │───▶│   Digital   │───▶│  Clinical   │───▶│  Learning   │  │
+│  │   Intake    │    │ Twin Engine │    │  Dashboard  │    │    Loop     │  │
 │  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘  │
 │                                                                              │
 │  ┌─────────────┐    ┌─────────────┐                                         │
 │  │   LAYER 5   │    │   LAYER 6   │                                         │
-│  │  External   │    │ Explainable │                                         │
+│  │   Secure    │    │ Explainable │                                         │
 │  │ Integration │    │     AI      │                                         │
 │  └─────────────┘    └─────────────┘                                         │
 │                                                                              │
@@ -93,15 +163,9 @@ The platform implements a sophisticated **6-layer architecture** designed for cl
 | **Layer 1** | Patient Intake | 9-step precision intake form capturing phenotype, vitals, biomarkers, lifestyle, and socio-economic data |
 | **Layer 2** | Digital Twin Engine | Converts patient profile into computable twin with feature vectors and risk calculations |
 | **Layer 3** | Clinical Dashboard | Real-time visualization of agent consensus, treatment recommendations, and outcome trajectories |
-| **Layer 4** | Feedback Loop | Continuous learning from actual patient outcomes to improve future predictions |
-| **Layer 5** | External Integration | Secure API endpoints for EHR systems and wearable device data ingestion |
+| **Layer 4** | Learning Loop | Continuous learning from actual patient outcomes to improve future predictions |
+| **Layer 5** | Secure Integration | Secure API endpoints for EHR systems and wearable device data ingestion |
 | **Layer 6** | Explainable AI | Feature importance analysis, what-if scenarios, and transparent reasoning |
-
-<p align="center">
-  <img src="screenshots/2.jpeg" alt="System Architecture" width="100%" />
-  <br>
-  <em>Figure 1: BioTwin System Architecture</em>
-</p>
 
 ---
 
@@ -145,12 +209,6 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
                     │   Final Treatment Recommendation│
                     └─────────────────────────────────┘
 ```
-
-<p align="center">
-  <img src="screenshots/3.jpeg" alt="Multi-Agent Consensus" width="100%" />
-  <br>
-  <em>Figure 2: Multi-Agent AI Consensus Protocol</em>
-</p>
 
 ---
 
@@ -339,66 +397,6 @@ cd frontend
 npm run build
 npm run preview
 ```
-
----
-
-## Screenshots
-
-### 1. Patient Intake Form
-
-<p align="center">
-  <img src="screenshots/4.jpeg" alt="Patient Intake Form" width="100%" />
-  <br>
-  <em>Figure 3: 9-Step Precision Patient Intake Form</em>
-</p>
-
-### 2. Clinical Dashboard
-
-<p align="center">
-  <img src="screenshots/5.jpeg" alt="Clinical Dashboard" width="100%" />
-  <br>
-  <em>Figure 4: Main Clinical Dashboard with Agent Overview</em>
-</p>
-
-### 3. Patient Profile
-
-<p align="center">
-  <img src="screenshots/6.jpeg" alt="Patient Profile" width="100%" />
-  <br>
-  <em>Figure 5: Comprehensive Patient Profile with Vitals and Biomarkers</em>
-</p>
-
-### 4. Agent Deliberation
-
-<p align="center">
-  <img src="screenshots/7.jpeg" alt="Agent Deliberation" width="100%" />
-  <br>
-  <em>Figure 6: Real-time Multi-Agent Deliberation with Tool Usage</em>
-</p>
-
-### 5. HERA Guardian
-
-<p align="center">
-  <img src="screenshots/8.jpeg" alt="HERA Guardian" width="100%" />
-  <br>
-  <em>Figure 7: HERA Guardian Enforcing Budget Constraints</em>
-</p>
-
-### 6. Outcome Trajectory
-
-<p align="center">
-  <img src="screenshots/9.jpeg" alt="Outcome Trajectory" width="100%" />
-  <br>
-  <em>Figure 8: Treatment Outcome Trajectory Comparison</em>
-</p>
-
-### 7. Final Recommendation
-
-<p align="center">
-  <img src="screenshots/10.jpeg" alt="Final Recommendation" width="100%" />
-  <br>
-  <em>Figure 9: Consensus-Driven Final Treatment Recommendation</em>
-</p>
 
 ---
 
