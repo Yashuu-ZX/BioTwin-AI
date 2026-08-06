@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { User, Heart, Pill, Activity, Dna, FileText, DollarSign, Car, MapPin } from 'lucide-react';
 

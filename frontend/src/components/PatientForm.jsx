@@ -1,5 +1,6 @@
+"use client";
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useRouter, useSearchParams } from 'next/navigation';
 import apiClient from '../api/apiClient';
 import { User, Activity, Dna, FileText, Pill, HeartPulse, Microscope, Target, ArrowRight, ArrowLeft, Loader2, Bot, CheckCircle2, AlertTriangle, BrainCircuit, Sparkles, Shuffle } from 'lucide-react';
 import { getRandomPatient } from '../data/patientDataset';
@@ -17,8 +18,8 @@ const steps = [
 ];
 
 const PatientForm = ({ role = 'doctor', darkMode = false }) => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState({ type: '', message: '' });
@@ -112,7 +113,7 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
     try {
       const response = await apiClient.post('/patient/intake', formData);
       setSubmitStatus({ type: 'success', message: 'Digital twin created. Opening the clinical dashboard...' });
-      navigate(`/dashboard/${response.data.patientId}`);
+      router.push(`/dashboard/${response.data.patientId}`);
     } catch (err) {
       console.error(err);
       const message = err?.response?.data?.error || err?.message || 'Failed to construct Digital Health Profile. Please try again.';

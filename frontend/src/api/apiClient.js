@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 const apiClient = axios.create({
   baseURL: apiBaseUrl,
@@ -31,7 +31,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     // Log request duration in development
-    if (import.meta.env.DEV && response.config.metadata) {
+    if (process.env.NODE_ENV !== 'production' && response.config.metadata) {
       const duration = new Date() - response.config.metadata.startTime;
       console.log(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${duration}ms`);
     }

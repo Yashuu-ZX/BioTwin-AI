@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from 'react';
 import apiClient from '../api/apiClient';
 import { Play, Loader2, Info, Activity, AlertTriangle, CheckCircle, BrainCircuit } from 'lucide-react';

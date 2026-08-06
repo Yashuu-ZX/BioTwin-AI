@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { Pill, Dna, Activity, Stethoscope, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Ban } from 'lucide-react';
 

@@ -1,6 +1,7 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Shield, Brain, ArrowRight, AlertTriangle, Ban, DollarSign, Sparkles } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter, useParams } from 'next/navigation';
 import AgentCard from './AgentCard';
 
 const SimulationStatus = ({ status, hasVeto }) => {
@@ -41,7 +42,7 @@ const MultiSpecialistConsensus = ({
   onRunSimulation = () => {},
   canSimulate = true,
 }) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { id: patientId } = useParams();
   
   const [agentStates, setAgentStates] = useState({

@@ -1,23 +1,12 @@
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Navigate, Routes, Route, useNavigate } from 'react-router-dom';
+"use client";
+
+import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Activity, ArrowRight, BrainCircuit, ShieldCheck, Waves, FlaskConical, Presentation } from 'lucide-react';
-import apiClient from './api/apiClient';
+import apiClient from '@/api/apiClient';
 
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const PatientForm = lazy(() => import('./components/PatientForm'));
-
-const RouteLoader = () => (
-  <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 text-slate-900">
-    <div className="space-y-4 text-center">
-      <Activity className="mx-auto h-10 w-10 animate-pulse text-emerald-500" />
-      <p className="text-lg font-semibold">Loading BioTwin workspace...</p>
-    </div>
-  </div>
-);
-
-// Clinician Homepage - Direct entry without role selection
-function Home() {
-  const navigate = useNavigate();
+export default function Home() {
+  const router = useRouter();
 
   const pillars = [
     {
@@ -60,7 +49,7 @@ function Home() {
     setIsLaunching(true);
     try {
       const response = await apiClient.post(`/patient/demo-seed/${slug}`);
-      navigate(`/dashboard/${response.data.patientId}`);
+      router.push(`/dashboard/${response.data.patientId}`);
     } catch (err) {
       console.error('Failed to launch demo case:', err);
       setLaunchError(err.response?.data?.error || 'Failed to launch demo case. Please try again.');
@@ -86,13 +75,13 @@ function Home() {
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <button
-                  onClick={() => navigate('/new')}
+                  onClick={() => router.push('/new')}
                   className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 font-semibold transition bg-black text-white hover:bg-slate-800"
                 >
                   Create Digital Twin <ArrowRight className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => navigate('/new?demo=1')}
+                  onClick={() => router.push('/new?demo=1')}
                   className="inline-flex items-center justify-center gap-2 rounded-full border px-7 py-4 font-semibold transition border-black/10 bg-white/80 text-slate-900 hover:bg-white"
                 >
                   Open Demo Patient
@@ -171,23 +160,3 @@ function Home() {
     </div>
   );
 }
-
-function App() {
-  return (
-    <Router>
-      <div className="min-h-screen font-sans bg-[#edf5e8] text-slate-900">
-        <Suspense fallback={<RouteLoader />}> 
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/new" element={<PatientForm />} />
-            <Route path="/dashboard/:id" element={<Dashboard role="doctor" />} />
-            <Route path="/dashboard/:id/:section" element={<Dashboard role="doctor" />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </div>
-    </Router>
-  );
-}
-
-export default App;

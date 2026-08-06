@@ -1,5 +1,6 @@
+"use client";
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter, useParams } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
@@ -50,7 +51,7 @@ const MetricCard = ({ icon: Icon, label, value, unit, status, trend }) => {
 
 const PatientDashboard = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const [patient, setPatient] = useState(null);
   const [prediction, setPrediction] = useState(null);
@@ -207,7 +208,7 @@ const PatientDashboard = () => {
         <Panel className="max-w-lg text-center">
           <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-rose-500" />
           <p className="mb-4 text-lg font-semibold text-slate-800">{error}</p>
-          <button onClick={() => navigate('/')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
+          <button onClick={() => router.push('/')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
             Back Home
           </button>
         </Panel>
@@ -220,7 +221,7 @@ const PatientDashboard = () => {
       <div className="mx-auto max-w-5xl">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
+          <button onClick={() => router.push('/')} className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
             <ArrowLeft className="h-5 w-5" />
             <span>Back</span>
           </button>

@@ -1,5 +1,6 @@
+"use client";
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
@@ -65,7 +66,7 @@ const StatCard = ({ icon: Icon, label, value, subtext, trend, color = 'slate' })
 };
 
 const AdminDashboard = ({ onLogout }) => {
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const [stats, setStats] = useState({
     totalPatients: 0,
@@ -150,7 +151,7 @@ const AdminDashboard = ({ onLogout }) => {
   const launchDemoCase = async (slug) => {
     try {
       const response = await apiClient.post(`/patient/demo-seed/${slug}`);
-      navigate(`/dashboard/${response.data.patientId}`);
+      router.push(`/dashboard/${response.data.patientId}`);
     } catch (err) {
       console.error('Failed to launch demo case:', err);
     }
@@ -355,7 +356,7 @@ const AdminDashboard = ({ onLogout }) => {
               <h2 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h2>
               <div className="space-y-2">
                 <button 
-                  onClick={() => navigate('/new')}
+                  onClick={() => router.push('/new')}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 text-left"
                 >
                   <div className="rounded-lg bg-blue-100 p-2">

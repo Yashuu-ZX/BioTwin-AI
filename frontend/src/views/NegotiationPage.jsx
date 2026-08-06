@@ -1,5 +1,6 @@
+"use client";
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter, useParams } from 'next/navigation';
 import {
   Activity,
   ArrowLeft,
@@ -194,7 +195,7 @@ function ConsensusResult({ result }) {
 }
 
 export default function NegotiationPage() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { id: patientId } = useParams();
   
   const [sessionId, setSessionId] = useState(null);
@@ -327,7 +328,7 @@ export default function NegotiationPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate(-1)}
+                onClick={() => router.push(-1)}
                 className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-400" />
@@ -362,7 +363,7 @@ export default function NegotiationPage() {
 
               {/* Home Button */}
               <button
-                onClick={() => navigate('/')}
+                onClick={() => router.push('/')}
                 className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
               >
                 <Home className="w-5 h-5 text-slate-400" />

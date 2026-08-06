@@ -1,5 +1,6 @@
+"use client";
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
@@ -231,9 +232,10 @@ const generateAgentInsights = (patient, drugIntel, result) => {
 // MAIN DASHBOARD COMPONENT
 // =============================================================================
 
-const Dashboard = ({ role = 'doctor' }) => {
-  const { id, section } = useParams();
-  const navigate = useNavigate();
+const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
+  const id = providedId;
+  const section = providedSection;
+  const router = useRouter();
 
   const activeSection = section || 'overview';
   const canSimulate = role === 'doctor' || role === 'admin';
@@ -693,7 +695,7 @@ const Dashboard = ({ role = 'doctor' }) => {
 
   const openSection = (key) => {
     if (key.startsWith('divider')) return;
-    navigate(`/dashboard/${id}/${key}`);
+    router.push(`/dashboard/${id}/${key}`);
   };
 
   // Generate agent insights based on patient data
