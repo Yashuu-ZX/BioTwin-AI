@@ -146,6 +146,28 @@ const negotiationRoutes = require('./routes/negotiation.routes');
 // Public routes
 app.use('/api/auth', authRoutes);
 
+// Health check endpoint (public - no auth required)
+app.get('/api/health', (req, res) => {
+  const telemetryServer = require('./websocket/telemetryServer');
+  const { isMongoReady } = require('./config/mongo');
+  res.json({ 
+    status: "healthy",
+    service: "BioTwin AI API",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    database: isMongoReady() ? 'MongoDB Atlas' : 'In-Memory MockDB',
+    features: {
+      agentNegotiation: true,
+      websocketTelemetry: true,
+      humanInTheLoop: true
+    },
+    websocket: {
+      path: '/ws/telemetry',
+      connectedClients: telemetryServer.getClientCount()
+    }
+  });
+});
+
 // Protect all following routes with Doctor Authorization
 app.use('/api', authMiddleware);
 
@@ -158,26 +180,6 @@ app.use('/api/pharmacology', pharmacologyRoutes); // Drug interactions & PK/PD m
 app.use('/api/alerts', alertsRoutes); // Clinical alerts & deterioration monitoring
 app.use('/api/trials', trialsRoutes); // Clinical trial matching
 app.use('/api/negotiate', negotiationRoutes); // Multi-round agent negotiation protocol
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  const telemetryServer = require('./websocket/telemetryServer');
-  res.json({ 
-    status: "healthy",
-    service: "BioTwin AI API",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    features: {
-      agentNegotiation: true,
-      websocketTelemetry: true,
-      humanInTheLoop: true
-    },
-    websocket: {
-      path: '/ws/telemetry',
-      connectedClients: telemetryServer.getClientCount()
-    }
-  });
-});
 
 // ==========================================
 // Global Error Handling Middleware

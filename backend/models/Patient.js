@@ -341,7 +341,8 @@ const PatientSchema = new mongoose.Schema({
     }
   }
   
-}, { timestamps: true });
+}, { timestamps: true, collection: 'patients' });
+
 
 // Indexes for common queries
 PatientSchema.index({ 'disease': 1 });

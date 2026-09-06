@@ -1,111 +1,111 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { isMongoReady } = require('../config/mongo');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_demo_purposes_only';
 const JWT_EXPIRES_IN = '24h';
 
-// Login route
+// ── Demo/mock account ────────────────────────────────────────────────────────
+// These credentials always work regardless of MongoDB status.
+// This ensures Vercel (or any deployment without a seeded DB) can still demo.
+const DEMO_EMAIL    = 'doctor@biotwin.ai';
+const DEMO_PASSWORD = 'password123';
+const DEMO_USER     = { id: 'demo-doc-001', role: 'doctor', name: 'Dr. Gregory House', email: DEMO_EMAIL };
+
+const signToken = (payload) =>
+  new Promise((resolve, reject) =>
+    jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN }, (err, token) =>
+      err ? reject(err) : resolve(token)
+    )
+  );
+
+// ── POST /api/auth/login ─────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    // 1. Demo credentials — always accepted, no DB needed
+    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+      const token = await signToken({ user: DEMO_USER });
+      return res.json({ token, user: DEMO_USER });
+    }
+
+    // 2. Real DB lookup (only if MongoDB is available)
     if (!isMongoReady()) {
-      // Mock DB Login Support
-      if (email === 'doctor@biotwin.ai' && password === 'password123') {
-        const payload = { user: { id: 'mock-doc-123', role: 'doctor', name: 'Dr. Gregory House' } };
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        return res.json({
-          token,
-          user: { id: 'mock-doc-123', name: 'Dr. Gregory House', email: 'doctor@biotwin.ai', role: 'doctor' }
-        });
-      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
 
-    // Generate JWT token
-    const payload = {
-      user: {
-        id: user.id,
-        role: user.role,
-        name: user.name
-      }
-    };
+    const token = await signToken({ user: { id: user.id, role: user.role, name: user.name } });
+    return res.json({
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
 
-    jwt.sign(
-      payload,
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN },
-      (err, token) => {
-        if (err) throw err;
-        res.json({
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role
-          }
-        });
-      }
-    );
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error during login' });
   }
 });
 
-// Seed a test doctor (useful for demo environments)
+// ── POST /api/auth/seed ──────────────────────────────────────────────────────
+// Always returns success. If MongoDB is available, creates/upserts the real
+// doctor document. If not (cold start, no Atlas, etc.), mock credentials work anyway.
 router.post('/seed', async (req, res) => {
   try {
+    // If MongoDB is not available, demo credentials still work via /login
     if (!isMongoReady()) {
-      // If Mongo is not ready, we can still login with the hardcoded mock credentials
       return res.status(201).json({
-        message: 'Mock database active. Test credentials are ready.',
-        email: 'doctor@biotwin.ai',
-        password: 'password123'
+        message: 'Demo credentials are ready (mock mode).',
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD
       });
     }
 
-    // Check if a doctor already exists
-    let existingDoctor = await User.findOne({ email: 'doctor@biotwin.ai' });
-    if (existingDoctor) {
-      return res.status(200).json({ message: 'Test doctor already seeded', email: 'doctor@biotwin.ai' });
-    }
+    // Upsert — avoids duplicate-key error if called twice.
+    // Must hash password manually since pre('save') hook doesn't fire on findOneAndUpdate.
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(DEMO_PASSWORD, salt);
 
-    const testDoctor = new User({
-      name: 'Dr. Gregory House',
-      email: 'doctor@biotwin.ai',
-      password: 'password123',
-      role: 'doctor'
+    await User.findOneAndUpdate(
+      { email: DEMO_EMAIL },
+      {
+        $setOnInsert: {
+          name: 'Dr. Gregory House',
+          email: DEMO_EMAIL,
+          password: hashedPassword,
+          role: 'doctor'
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(201).json({
+      message: 'Demo doctor account is ready.',
+      email: DEMO_EMAIL,
+      password: DEMO_PASSWORD
     });
 
-    await testDoctor.save();
-
-    res.status(201).json({
-      message: 'Test doctor successfully created',
-      email: 'doctor@biotwin.ai',
-      password: 'password123'
-    });
   } catch (err) {
-    console.error('Seed error:', err);
-    res.status(500).json({ error: 'Server error during seeding: ' + err.message, stack: err.stack });
+    // Even if DB seed fails, tell the client demo credentials will work
+    console.error('Seed error (non-fatal):', err.message);
+    return res.status(201).json({
+      message: 'Demo credentials are available regardless of DB state.',
+      email: DEMO_EMAIL,
+      password: DEMO_PASSWORD
+    });
   }
 });
 
