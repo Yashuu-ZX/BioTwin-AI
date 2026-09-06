@@ -14,6 +14,34 @@ const { v4: uuidv4 } = require('uuid');
 const negotiationService = require('../services/agentNegotiation.service');
 const { getPatientById } = require('../services/explainability.service');
 const mockDB = require('../data/mockDatabase');
+const Negotiation = require('../models/Negotiation');
+const { isMongoReady } = require('../config/mongo');
+
+// Helper: persist a completed negotiation session to MongoDB
+async function saveNegotiationToMongo(sessionId, patientId, result, context) {
+  if (!isMongoReady()) return;
+  try {
+    await Negotiation.create({
+      sessionId,
+      patientId,
+      state: result.session?.state,
+      currentRound: result.session?.currentRound,
+      maxRounds: result.session?.maxRounds,
+      consensusReached: result.result?.consensusReached || false,
+      finalPlan: result.result?.finalPlan,
+      proposals: result.session?.proposals || [],
+      vetoes: result.session?.vetoes || [],
+      humanInterventions: result.session?.humanInterventions || [],
+      telemetry: result.telemetry || [],
+      treatmentContext: context,
+      startTime: result.session?.startTime,
+      endTime: new Date()
+    });
+    console.log(`Negotiation session saved to MongoDB: ${sessionId}`);
+  } catch (dbErr) {
+    console.warn('MongoDB save failed for negotiation:', dbErr.message);
+  }
+}
 
 /**
  * POST /api/negotiate/start
@@ -58,10 +86,11 @@ router.post('/start', async (req, res) => {
       }
     });
 
-    // Handle negotiation completion (fire and forget)
+    // Handle negotiation completion (fire and forget) — and persist to MongoDB
     negotiationPromise.then(result => {
       console.log(`[Negotiation] Session ${sessionId} completed:`, 
         result.result.consensusReached ? 'CONSENSUS' : 'NO CONSENSUS');
+      saveNegotiationToMongo(sessionId, patientId, result, treatmentContext || {});
     }).catch(err => {
       console.error(`[Negotiation] Session ${sessionId} error:`, err);
     });
@@ -97,6 +126,9 @@ router.post('/start-sync', async (req, res) => {
       patient,
       treatmentContext || {}
     );
+
+    // Persist to MongoDB
+    await saveNegotiationToMongo(sessionId, patientId, result, treatmentContext || {});
 
     res.json({
       success: true,

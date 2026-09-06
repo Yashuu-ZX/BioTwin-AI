@@ -12,6 +12,7 @@ const mockDB = require('../data/mockDatabase');
 const { isMongoReady } = require('../config/mongo');
 const { validatePatientId, sanitizeString } = require('../utils/validation');
 const pharmacologyService = require('../services/pharmacology.service');
+const PharmacologyAnalysis = require('../models/PharmacologyAnalysis');
 
 /**
  * GET /api/pharmacology/:patientId/analysis
@@ -30,6 +31,25 @@ router.get('/:patientId/analysis', async (req, res) => {
     }
 
     const analysis = pharmacologyService.analyzePatientPharmacology(patient);
+
+    // Persist analysis to MongoDB
+    try {
+      if (isMongoReady()) {
+        await PharmacologyAnalysis.create({
+          patientId: req.params.patientId,
+          analysiType: 'full',
+          medications: (patient.medications || []).map(m => m.name || m),
+          interactions: analysis.drugInteractions?.interactions || [],
+          dosingAdjustments: analysis.renalDosing?.adjustments || [],
+          pgxGuidance: analysis.pharmacogenomics?.guidance || [],
+          allergyContraindications: analysis.allergyContraindications?.contraindications || [],
+          fullResult: analysis
+        });
+        console.log(`Pharmacology analysis saved to MongoDB for patient: ${req.params.patientId}`);
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB save failed for pharmacology analysis:', dbErr.message);
+    }
     
     res.json({
       patientId: req.params.patientId,

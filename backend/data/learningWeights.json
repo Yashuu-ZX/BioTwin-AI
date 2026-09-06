@@ -1,7 +1,7 @@
 {
-  "modelAccuracy": 94.31,
-  "learningStatus": "Stable",
-  "totalFeedbackProcessed": 30,
+  "modelAccuracy": 96.36,
+  "learningStatus": "Improving",
+  "totalFeedbackProcessed": 32,
   "protocolAdjustments": {
     "Conservative": {
       "effectivenessMod": 1,
@@ -12,6 +12,10 @@
       "riskMod": 0.7599999999999998
     },
     "Aggressive": {
+      "effectivenessMod": 1,
+      "riskMod": 1
+    },
+    "Metformin 500mg": {
       "effectivenessMod": 1,
       "riskMod": 1
     }
@@ -226,6 +230,20 @@
       "timestamp": "2026-03-19T04:13:45.178Z",
       "predictionAccuracy": 92.45,
       "errorMargin": 7.55
+    },
+    {
+      "patientId": "patient_1788716425954",
+      "treatmentUsed": "Metformin 500mg",
+      "timestamp": "2026-09-06T17:40:25.954Z",
+      "predictionAccuracy": 100,
+      "errorMargin": 0
+    },
+    {
+      "patientId": "patient_1788717357192",
+      "treatmentUsed": "Metformin 500mg",
+      "timestamp": "2026-09-06T17:55:57.192Z",
+      "predictionAccuracy": 100,
+      "errorMargin": 0
     }
   ]
 }

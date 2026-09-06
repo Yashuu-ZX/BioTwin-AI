@@ -119,8 +119,11 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: "Age must be a number between 0 and 150" });
   }
 
+  // Both 'id' (legacy mockDB key) and 'patientId' (Mongoose schema required field) must be set
+  const generatedId = uuidv4();
   const newPatient = {
-    id: uuidv4(),
+    id: generatedId,
+    patientId: generatedId,   // <-- required by Patient schema
     ...patientData,
     name: sanitizedName,
     age: age,
@@ -129,12 +132,13 @@ router.post('/', async (req, res) => {
 
   mockDB.addPatient(newPatient);
   try {
-     if (isMongoReady()) {
+    if (isMongoReady()) {
       await Patient.create(newPatient);
-     }
-   } catch(e) {
-     console.warn('MongoDB save failed for patient:', e.message);
-   }
+      console.log(`Patient saved to MongoDB: ${newPatient.patientId}`);
+    }
+  } catch(e) {
+    console.warn('MongoDB save failed for patient:', e.message);
+  }
   
   res.status(201).json(newPatient);
 });

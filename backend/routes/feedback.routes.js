@@ -3,9 +3,11 @@
 const express = require('express');
 const router = express.Router();
 const learningService = require('../services/learning.service');
+const Feedback = require('../models/Feedback');
+const { isMongoReady } = require('../config/mongo');
 
 // POST /api/feedback - Bridge Prediction vs Reality
-router.post('/feedback', (req, res) => {
+router.post('/feedback', async (req, res) => {
   const { patientId, treatmentUsed, actualOutcome, predictedOutcome } = req.body;
 
   if (!patientId || !treatmentUsed || !actualOutcome || !predictedOutcome) {
@@ -14,6 +16,24 @@ router.post('/feedback', (req, res) => {
 
   try {
     const evaluation = learningService.processFeedback(req.body);
+
+    // Persist feedback to MongoDB Atlas
+    try {
+      if (isMongoReady()) {
+        await Feedback.create({
+          patientId,
+          treatmentUsed,
+          actualOutcome,
+          predictedOutcome,
+          predictionAccuracy: evaluation?.predictionAccuracy,
+          delta: evaluation?.delta,
+          evaluation
+        });
+        console.log(`Feedback saved to MongoDB for patient: ${patientId}`);
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB save failed for feedback:', dbErr.message);
+    }
 
     res.json({
       success: true,

@@ -8,37 +8,34 @@
 const express = require('express');
 const router = express.Router();
 const trialsService = require('../services/trials.service');
-
-// In-memory patient store reference (same as other routes)
-const mockDB = require('../config/db').getMockDB?.() || new Map();
+const mockDB = require('../data/mockDatabase');
+const Patient = require('../models/Patient');
+const TrialMatch = require('../models/TrialMatch');
+const { isMongoReady } = require('../config/mongo');
 
 /**
- * Helper to get patient from store
+ * Helper to get patient from MongoDB or mockDB fallback
  */
-function getPatient(patientId) {
-  // Try mock DB first
-  if (mockDB.has?.(patientId)) {
-    return mockDB.get(patientId);
+async function getPatient(patientId) {
+  let patient = null;
+  try {
+    if (isMongoReady()) {
+      patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
+    }
+  } catch (e) {
+    console.warn('MongoDB patient lookup failed:', e.message);
   }
-  // Check if it's a Map-like object
-  if (mockDB instanceof Map) {
-    return mockDB.get(patientId);
-  }
-  // Check if it's an object
-  if (typeof mockDB === 'object' && mockDB[patientId]) {
-    return mockDB[patientId];
-  }
-  return null;
+  return patient || mockDB.getPatient(patientId);
 }
 
 /**
  * POST /api/trials/match/:patientId
  * Match a patient to eligible clinical trials
  */
-router.post('/match/:patientId', (req, res) => {
+router.post('/match/:patientId', async (req, res) => {
   try {
     const { patientId } = req.params;
-    const patient = getPatient(patientId);
+    const patient = await getPatient(patientId);
     
     if (!patient) {
       return res.status(404).json({
@@ -48,17 +45,27 @@ router.post('/match/:patientId', (req, res) => {
     }
 
     const matchResults = trialsService.matchPatientToTrials(patient);
+
+    // Persist match result to MongoDB
+    try {
+      if (isMongoReady()) {
+        await TrialMatch.create({
+          patientId,
+          matchType: 'full',
+          totalFound: matchResults.totalFound,
+          eligibleTrials: matchResults.eligibleCount,
+          results: matchResults.results
+        });
+        console.log(`Trial match saved to MongoDB for patient: ${patientId}`);
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB save failed for trial match:', dbErr.message);
+    }
     
-    res.json({
-      success: true,
-      ...matchResults
-    });
+    res.json({ success: true, ...matchResults });
   } catch (error) {
     console.error('Trial matching error:', error);
-    res.status(500).json({
-      error: 'Trial matching failed',
-      message: error.message
-    });
+    res.status(500).json({ error: 'Trial matching failed', message: error.message });
   }
 });
 

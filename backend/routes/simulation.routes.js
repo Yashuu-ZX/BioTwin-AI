@@ -3,6 +3,7 @@ const router = express.Router();
 const mockDB = require('../data/mockDatabase');
 const digitalTwinService = require('../services/digitalTwin.service');
 const Patient = require('../models/Patient');
+const Simulation = require('../models/Simulation');
 const { isMongoReady } = require('../config/mongo');
 const { validatePatientId, validateTreatmentPlan } = require('../utils/validation');
 
@@ -52,12 +53,25 @@ router.post('/simulate', async (req, res) => {
   }
 
   const simulationResult = digitalTwinService.runFullSimulation(patient, sanitizedTreatmentPlan);
-  mockDB.addSimulation(patientId, {
+  const simulationRecord = {
     patientId,
     treatmentPlan: sanitizedTreatmentPlan,
     ...simulationResult,
     timestamp: new Date().toISOString()
-  });
+  };
+
+  // Save to mockDB (in-memory, for current session)
+  mockDB.addSimulation(patientId, simulationRecord);
+
+  // Persist to MongoDB Atlas
+  try {
+    if (isMongoReady()) {
+      await Simulation.create(simulationRecord);
+      console.log(`Simulation saved to MongoDB for patient: ${patientId}`);
+    }
+  } catch (dbErr) {
+    console.warn('MongoDB save failed for simulation:', dbErr.message);
+  }
 
   res.json({
     patientId,
