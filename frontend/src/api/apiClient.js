@@ -16,9 +16,13 @@ apiClient.interceptors.request.use(
     // Add timestamp to track request duration
     config.metadata = { startTime: new Date() };
     
-    // Could add auth token here if needed
-    // const token = localStorage.getItem('auth-token');
-    // if (token) config.headers.Authorization = `Bearer ${token}`;
+    // Auth token injection
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('biotwin_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     
     return config;
   },
@@ -44,10 +48,14 @@ apiClient.interceptors.response.use(
     } else if (!error.response) {
       error.message = 'Network error. Please check your connection.';
     } else if (error.response.status === 401) {
-      // Could handle auth redirect here
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        localStorage.removeItem('biotwin_token');
+        localStorage.removeItem('biotwin_user');
+        window.location.href = '/login';
+      }
       error.message = 'Authentication required.';
     } else if (error.response.status === 403) {
-      error.message = 'Access denied.';
+      error.message = 'Access denied. You do not have the required role.';
     } else if (error.response.status >= 500) {
       error.message = error.response.data?.error || 'Server error. Please try again later.';
     }

@@ -131,6 +131,8 @@ app.use((req, res, next) => {
 });
 
 // Routes
+const authRoutes = require('./routes/auth.routes');
+const authMiddleware = require('./middleware/auth.middleware');
 const patientRoutes = require('./routes/patient.routes');
 const simulationRoutes = require('./routes/simulation.routes');
 const feedbackRoutes = require('./routes/feedback.routes');
@@ -140,6 +142,12 @@ const pharmacologyRoutes = require('./routes/pharmacology.routes');
 const alertsRoutes = require('./routes/alerts.routes');
 const trialsRoutes = require('./routes/trials.routes');
 const negotiationRoutes = require('./routes/negotiation.routes');
+
+// Public routes
+app.use('/api/auth', authRoutes);
+
+// Protect all following routes with Doctor Authorization
+app.use('/api', authMiddleware);
 
 app.use('/api/patient', patientRoutes);
 app.use('/api', simulationRoutes); // /api/simulate and /api/predict

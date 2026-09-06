@@ -120,7 +120,7 @@ const MultiSpecialistConsensus = ({
         hera: { active: true, processing: false },
         'lead-physician': { active: true, processing: false },
       };
-      setAgentStates(newState);
+      setTimeout(() => setAgentStates(newState), 0);
     }
   }, [isSimulating, simulationResult]);
 

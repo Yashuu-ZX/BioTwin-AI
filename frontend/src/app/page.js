@@ -34,8 +34,12 @@ export default function Home() {
   const [demoCases, setDemoCases] = React.useState([]);
   const [launchError, setLaunchError] = React.useState('');
   const [isLaunching, setIsLaunching] = React.useState(false);
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
 
   React.useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('biotwin_token')) {
+      setIsLoggedIn(true);
+    }
     apiClient.get('/patient/demo-cases')
       .then((response) => setDemoCases(response.data))
       .catch((err) => {
@@ -75,16 +79,10 @@ export default function Home() {
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <button
-                  onClick={() => router.push('/new')}
+                  onClick={() => router.push(isLoggedIn ? '/doctor' : '/login')}
                   className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 font-semibold transition bg-black text-white hover:bg-slate-800"
                 >
-                  Create Digital Twin <ArrowRight className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => router.push('/new?demo=1')}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border px-7 py-4 font-semibold transition border-black/10 bg-white/80 text-slate-900 hover:bg-white"
-                >
-                  Open Demo Patient
+                  {isLoggedIn ? 'Enter Clinical Registry' : 'Clinical Login'} <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             </div>

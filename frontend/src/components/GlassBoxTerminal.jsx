@@ -92,7 +92,7 @@ function EventLine({ event, isNew }) {
                 </div>
               )}
               {event.proposal?.reasoning && (
-                <p className="mt-1 text-xs text-slate-400 italic">"{event.proposal.reasoning}"</p>
+                <p className="mt-1 text-xs text-slate-400 italic">&quot;{event.proposal.reasoning}&quot;</p>
               )}
             </div>
           </div>

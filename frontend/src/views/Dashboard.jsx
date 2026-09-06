@@ -236,6 +236,10 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
   const id = providedId;
   const section = providedSection;
   const router = useRouter();
+  // Monotonic counter for message IDs — avoids duplicate keys when messages
+  // are created in the same millisecond via Date.now()
+  const msgCounter = useRef(0);
+  const nextId = () => `msg-${++msgCounter.current}`;
 
   const activeSection = section || 'overview';
   const canSimulate = role === 'doctor' || role === 'admin';
@@ -443,7 +447,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
     
     // Add initial system message
     setDeliberationMessages([{
-      id: Date.now(),
+      id: nextId(),
       agent: 'system',
       type: 'system',
       message: 'Initializing multi-agent consensus protocol...',
@@ -472,7 +476,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // FEATURE 3: Tool Use Events (Live Tool-Use Overlay)
           if (event.type === 'tool_use' || event.type === 'api_query' || event.type === 'database_query') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: 'tool_use',
               tool: event.tool || event.database || 'External API',
@@ -483,7 +487,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // FEATURE 2: Sub-Agent Spawning (Dynamic Agent Swarming)
           else if (event.type === 'sub_agent_spawn' || event.type === 'specialist_summon') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: 'sub_agent',
               subAgentName: event.subAgentName || event.specialistName || 'Specialist',
@@ -495,7 +499,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // FEATURE 2: Sub-Agent Response
           else if (event.type === 'sub_agent_response' || event.type === 'specialist_response') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: 'sub_agent_response',
               agentName: event.agentName || event.subAgentName || 'Specialist',
@@ -508,7 +512,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // FEATURE 5: Memory & Reflection Events
           else if (event.type === 'reflection' || event.type === 'memory_recall' || event.type === 'past_case') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: 'reflection',
               message: event.message || event.memory || 'Recalling similar case from memory...',
@@ -519,7 +523,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // FEATURE 1: Steering acknowledgment from agents
           else if (event.type === 'steering_acknowledgment' || event.type === 'constraint_acknowledged') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: 'steering_acknowledgment',
               message: event.message,
@@ -530,7 +534,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // Renegotiation triggered
           else if (event.type === 'renegotiation_triggered' || event.type === 'renegotiation') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: 'system',
               type: 'renegotiation_triggered',
               message: event.message || 'Re-negotiation triggered based on new constraints...',
@@ -550,7 +554,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
             else if (event.type === 'agent_approval') messageType = 'approval';
             
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: agentId,
               type: messageType,
               message: event.message,
@@ -561,7 +565,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           // Consensus reached
           else if (event.type === 'consensus_reached' || event.type === 'consensus_generated') {
             messages.push({
-              id: event.timestamp || Date.now() + Math.random(),
+              id: nextId(),
               agent: 'coordinator',
               type: 'consensus',
               message: event.message,
@@ -632,7 +636,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
       console.error('Negotiation API error:', error);
       // Fallback to demo mode on error
       setDeliberationMessages(prev => [...prev, {
-        id: Date.now(),
+        id: nextId(),
         agent: 'system',
         type: 'system',
         message: `Note: Using simulated deliberation. Backend: ${error.message}`,
@@ -649,7 +653,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
       setTimeout(() => {
         const newMessage = {
           ...resp,
-          id: Date.now() + Math.random(),
+          id: nextId(),
           timestamp: formatTimestamp()
         };
         setDeliberationMessages(prev => [...prev, newMessage]);
@@ -1459,7 +1463,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
     
     // Add steering message to feed
     const steeringMsg = {
-      id: Date.now(),
+      id: nextId(),
       agent: 'clinician',
       type: 'steering_intervention',
       constraint: constraint,
@@ -1542,7 +1546,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
     // Agent acknowledgment with delay
     setTimeout(() => {
       setDeliberationMessages(prev => [...prev, {
-        id: Date.now(),
+        id: nextId(),
         agent: respondingAgent,
         type: 'steering_acknowledgment',
         isFlashing: true,
@@ -1554,7 +1558,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
     // Re-negotiation signal
     setTimeout(() => {
       setDeliberationMessages(prev => [...prev, {
-        id: Date.now(),
+        id: nextId(),
         agent: 'system',
         type: 'renegotiation_triggered',
         message: detectedDrug 
@@ -1627,7 +1631,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
               <span className="text-xs text-amber-500 ml-auto">{msg.timestamp}</span>
             </div>
             <p className="text-sm text-amber-800 font-medium pl-10 italic">
-              "{msg.constraint || msg.message}"
+              &quot;{msg.constraint || msg.message}&quot;
             </p>
           </div>
         );
@@ -1782,7 +1786,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
                 💭 Past Case Learning
               </div>
               <p className="text-sm text-indigo-700 italic bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
-                "{msg.message}"
+                &quot;{msg.message}&quot;
               </p>
             </div>
           </div>
@@ -1966,11 +1970,15 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
                       {consensusStatus === 'idle' ? 'Ready to Start' : 'Connecting to Agents...'}
                     </h4>
                     <p className="text-xs text-slate-400 max-w-[240px]">
-                      Click "Start Consensus" to begin multi-agent deliberation and generate treatment recommendation
+                      Click &quot;Start Consensus&quot; to begin multi-agent deliberation and generate treatment recommendation
                     </p>
                   </div>
                 ) : (
-                  deliberationMessages.map((msg, i) => renderMessage(msg, i))
+                  deliberationMessages.map((msg, i) => (
+                    <React.Fragment key={msg.id ?? `msg-${i}`}>
+                      {renderMessage(msg, i)}
+                    </React.Fragment>
+                  ))
                 )}
               </div>
 
@@ -2006,7 +2014,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
                 </form>
                 {isSteeringActive && (
                   <p className="text-xs text-amber-600 mt-2 pl-4">
-                    💡 Type a constraint to steer agents in real-time (e.g., "avoid expensive drugs", "patient is allergic to penicillin")
+                    💡 Type a constraint to steer agents in real-time (e.g., &quot;avoid expensive drugs&quot;, &quot;patient is allergic to penicillin&quot;)
                   </p>
                 )}
               </div>
@@ -2144,8 +2152,8 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
         <Panel className="max-w-lg text-center">
           <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-rose-500" />
           <p className="mb-4 text-lg font-semibold">{error}</p>
-          <button onClick={() => navigate('/')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
-            Back Home
+          <button onClick={() => router.push('/doctor')} className="rounded-full bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700">
+            Back to Registry
           </button>
         </Panel>
       </div>
@@ -2219,7 +2227,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
           {/* Footer */}
           <div className="pt-4 space-y-2">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => router.push('/doctor')}
               className="flex w-full items-center gap-3 rounded-xl bg-slate-100 px-3 py-2.5 text-slate-600 hover:bg-white text-sm"
             >
               <Home className="h-4 w-4" /> Back Home

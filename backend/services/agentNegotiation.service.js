@@ -296,15 +296,10 @@ async function geneticistAnalyze(session) {
   // FEATURE 5: Check memory for reflections
   await emitReflection(session.id, agent.id, patient);
   
-  // FEATURE 3: Tool use - PharmGKB lookup
-  await emitToolUse(session.id, agent.id, 'PharmGKB Lookup', 
-    `Querying ${patient.biomarkers?.pharmacogenomics?.cyp2d6 || 'CYP2D6'} implications`,
-    'Looking up pharmacogenomic guidelines...');
-  
-  // FEATURE 3: Tool use - CPIC guidelines
-  await emitToolUse(session.id, agent.id, 'CPIC Guidelines API',
-    'Fetching clinical pharmacogenetics recommendations',
-    'Checking CPIC dosing guidelines...');
+  // FEATURE 3: Tool use - Simulated Database
+  await emitToolUse(session.id, agent.id, 'Simulated Clinical Database',
+    `Querying genetic implications`,
+    'Simulated evidence lookup...');
   
   let analysis;
   
@@ -358,11 +353,11 @@ async function geneticistAnalyze(session) {
     analysis = getMockGeneticistAnalysis(patient);
   }
   
-  // FEATURE 2: Check for sub-agent needs (neurological conditions)
+  // FEATURE 2: Check for sub-agent needs (oncology conditions)
   const conditions = patient.conditions || patient.medicalHistory?.conditions || [];
-  if (conditions.some(c => c.toLowerCase().includes('alzheimer') || 
-                          c.toLowerCase().includes('migraine') ||
-                          c.toLowerCase().includes('parkinson'))) {
+  if (conditions.some(c => c.toLowerCase().includes('cancer') || 
+                          c.toLowerCase().includes('tumor') ||
+                          c.toLowerCase().includes('malignant'))) {
     await checkAndSummonSubAgents(session.id, agent.id, patient);
   }
   
@@ -401,20 +396,10 @@ async function pharmacologistAnalyze(session) {
   // FEATURE 5: Check memory for past interactions learned
   await emitReflection(session.id, agent.id, patient);
   
-  // FEATURE 3: Tool use - PubMed search
-  await emitToolUse(session.id, agent.id, 'PubMed Interactions API',
-    `Querying ${medications.slice(0, 2).map(m => m.name).join(' + ') || 'medication'} interactions`,
-    'Searching clinical literature for interaction data...');
-  
-  // FEATURE 3: Tool use - DrugBank
-  await emitToolUse(session.id, agent.id, 'DrugBank API',
-    `Checking interaction severity classifications`,
-    'Verifying interaction mechanisms...');
-  
-  // FEATURE 3: Tool use - FDA FAERS
-  await emitToolUse(session.id, agent.id, 'FDA FAERS Database',
-    `Searching adverse event reports`,
-    'Analyzing post-market safety signals...');
+  // FEATURE 3: Tool use - Simulated Database
+  await emitToolUse(session.id, agent.id, 'Simulated Clinical Database',
+    `Checking drug interactions`,
+    'Simulated evidence lookup...');
   
   let analysis;
   
@@ -507,15 +492,10 @@ async function endocrinologistAnalyze(session) {
   // FEATURE 5: Check memory
   await emitReflection(session.id, agent.id, patient);
   
-  // FEATURE 3: Tool use - ADA guidelines
-  await emitToolUse(session.id, agent.id, 'ADA Standards of Care',
-    'Referencing diabetes management guidelines',
-    'Checking ADA 2024 recommendations...');
-  
-  // FEATURE 3: Tool use - Glycemic calculator
-  await emitToolUse(session.id, agent.id, 'Glycemic Target Calculator',
-    `Computing targets for age ${patient.age || '?'}, glucose ${patient.vitals?.sugar || patient.vitals?.glucose || '?'}`,
-    'Calculating individualized HbA1c goals...');
+  // FEATURE 3: Tool use - Simulated Database
+  await emitToolUse(session.id, agent.id, 'Simulated Clinical Database',
+    `Computing individualized metabolic targets`,
+    'Simulated evidence lookup...');
   
   let analysis;
   
@@ -615,21 +595,11 @@ async function heraAnalyze(session) {
   // FEATURE 5: Memory-based reflection (key feature for HERA)
   const reflection = await emitReflection(session.id, agent.id, patient);
   
-  // FEATURE 3: Tool use - GoodRx pricing
+  // FEATURE 3: Tool use - Simulated Database
   const medications = patient.medications?.filter(m => m.name) || [];
-  await emitToolUse(session.id, agent.id, 'GoodRx Pricing API',
-    `Querying local pricing for ${medications[0]?.name || 'medications'}`,
-    'Fetching pharmacy prices in patient area...');
-  
-  // FEATURE 3: Tool use - Formulary check
-  await emitToolUse(session.id, agent.id, 'CMS Formulary Check',
-    `Verifying ${insurance} tier coverage`,
-    'Checking formulary and prior auth requirements...');
-  
-  // FEATURE 3: Tool use - Patient assistance
-  await emitToolUse(session.id, agent.id, 'Patient Assistance Programs',
-    'Searching manufacturer programs',
-    'Finding assistance program eligibility...');
+  await emitToolUse(session.id, agent.id, 'Simulated Clinical Database',
+    `Querying pricing and formulary coverage`,
+    'Simulated evidence lookup...');
   
   let analysis;
   

@@ -152,7 +152,7 @@ export function useAgentTelemetry(sessionId, options = {}) {
   // Auto-connect on mount
   useEffect(() => {
     if (autoConnect) {
-      connect();
+      setTimeout(() => connect(), 0);
     }
     
     return () => {

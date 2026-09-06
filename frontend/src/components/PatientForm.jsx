@@ -17,7 +17,7 @@ const steps = [
   { id: 9, title: 'Treatment Goal', icon: Target }
 ];
 
-const PatientForm = ({ role = 'doctor', darkMode = false }) => {
+const PatientForm = ({ darkMode = false }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
@@ -101,10 +101,10 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('demo') === '1' && role !== 'patient') {
-      autoFill();
+    if (searchParams.get('demo') === '1') {
+      setTimeout(() => autoFill(), 0);
     }
-  }, [searchParams, role, autoFill]);
+  }, [searchParams, autoFill]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -390,12 +390,11 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
                 <Sparkles className="h-3.5 w-3.5" /> Precision Intake Studio
               </div>
               <h1 className={`text-3xl md:text-5xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>Build a clinically meaningful digital twin</h1>
-              <p className={`mt-3 max-w-3xl text-base md:text-lg ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{role === 'patient' ? 'Share your symptoms, vitals, and care context so the clinical team can prepare a personalized twin.' : 'Capture phenotype, vitals, lifestyle, and biomarker intelligence before sending the case into treatment simulation.'}</p>
+              <p className={`mt-3 max-w-3xl text-base md:text-lg ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Capture phenotype, vitals, lifestyle, and biomarker intelligence before sending the case into treatment simulation.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-auto">
               <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Workflow</p><p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>9-step precision intake</p></div>
               <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Biology layer</p><p className={`mt-2 font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Biomarkers enabled</p></div>
-              <div className={`rounded-2xl border p-4 ${sectionCardClass}`}><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Role</p><p className={`mt-2 font-semibold capitalize ${darkMode ? 'text-white' : 'text-slate-900'}`}>{role}</p></div>
             </div>
           </div>
         </div>
@@ -454,11 +453,9 @@ const PatientForm = ({ role = 'doctor', darkMode = false }) => {
                <p className={`text-xs mt-1 uppercase tracking-wider ${mutedTextClass}`}>Layer 1 Collection</p>
              </div>
             
-            {role !== 'patient' && (
-               <button type="button" onClick={autoFill} className={`text-xs px-3 py-1.5 rounded-full transition-all flex items-center gap-1 font-semibold ${darkMode ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30' : 'bg-lime-100 text-lime-700 border border-lime-200 hover:bg-lime-200'}`}>
-                 <Shuffle size={12} /> Random Patient
-               </button>
-            )}
+             <button type="button" onClick={autoFill} className={`text-xs px-3 py-1.5 rounded-full transition-all flex items-center gap-1 font-semibold ${darkMode ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30' : 'bg-lime-100 text-lime-700 border border-lime-200 hover:bg-lime-200'}`}>
+               <Shuffle size={12} /> Random Patient
+             </button>
           </div>
 
            <form onSubmit={handleSubmit} className="flex-1 flex flex-col">

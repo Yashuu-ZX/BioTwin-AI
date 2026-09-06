@@ -164,7 +164,7 @@ The platform implements a sophisticated **6-layer architecture** designed for cl
 | **Layer 2** | Digital Twin Engine | Converts patient profile into computable twin with feature vectors and risk calculations |
 | **Layer 3** | Clinical Dashboard | Real-time visualization of agent consensus, treatment recommendations, and outcome trajectories |
 | **Layer 4** | Learning Loop | Continuous learning from actual patient outcomes to improve future predictions |
-| **Layer 5** | Secure Integration | Secure API endpoints for EHR systems and wearable device data ingestion |
+| **Layer 5** | Secure Auth | JWT-based doctor authentication and secure API endpoints for EHR/wearable ingestion |
 | **Layer 6** | Explainable AI | Feature importance analysis, what-if scenarios, and transparent reasoning |
 
 ---
@@ -222,6 +222,7 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
 | **Express 5.x** | Web framework |
 | **MongoDB 6.0** | Database (optional) |
 | **Mongoose 9.x** | ODM for MongoDB |
+| **jsonwebtoken / bcryptjs** | Secure Doctor Authentication |
 | **OpenAI / OpenRouter** | AI-powered agent analysis |
 | **WebSocket (ws)** | Real-time telemetry |
 | **PDFKit** | Report generation |
@@ -531,23 +532,24 @@ The platform includes GitHub Actions CI/CD pipeline for automated deployment:
 │                        CLINICAL DECISION WORKFLOW                         │
 └──────────────────────────────────────────────────────────────────────────┘
 
-    ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
-    │ STEP 1  │ ───▶ │ STEP 2  │ ───▶ │ STEP 3  │ ───▶ │ STEP 4  │
-    │ Intake  │      │  Twin   │      │Consensus│      │  Treat  │
-    └─────────┘      └─────────┘      └─────────┘      └─────────┘
-         │                │                │                │
-         ▼                ▼                ▼                ▼
-    ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
-    │ Patient │      │ Digital │      │   AI    │      │ Monitor │
-    │  Data   │      │  Twin   │      │ Agents  │      │Outcomes │
-    │ Capture │      │ Created │      │Negotiate│      │& Learn  │
-    └─────────┘      └─────────┘      └─────────┘      └─────────┘
+    ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
+    │ STEP 1  │ ───▶ │ STEP 2  │ ───▶ │ STEP 3  │ ───▶ │ STEP 4  │ ───▶ │ STEP 5  │
+    │  Auth   │      │ Intake  │      │  Twin   │      │Consensus│      │  Treat  │
+    └─────────┘      └─────────┘      └─────────┘      └─────────┘      └─────────┘
+         │                │                │                │                │
+         ▼                ▼                ▼                ▼                ▼
+    ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
+    │ Doctor  │      │ Patient │      │ Digital │      │   AI    │      │ Monitor │
+    │  Login  │      │  Data   │      │  Twin   │      │ Agents  │      │Outcomes │
+    │         │      │ Capture │      │ Created │      │Negotiate│      │& Learn  │
+    └─────────┘      └─────────┘      └─────────┘      └─────────┘      └─────────┘
 ```
 
-1. **Patient Intake**: Clinician enters patient data through 9-step form
-2. **Digital Twin**: System creates computable patient model
-3. **AI Consensus**: Four specialized agents analyze and negotiate treatment
-4. **Treatment & Learning**: Clinician applies recommendation, outcomes feed back into system
+1. **Secure Authentication**: Doctor logs into the system (JWT protected)
+2. **Patient Intake**: Clinician enters patient data through 9-step form
+3. **Digital Twin**: System creates computable patient model
+4. **AI Consensus**: Four specialized agents analyze and negotiate treatment
+5. **Treatment & Learning**: Clinician applies recommendation, outcomes feed back into system
 
 ---
 
@@ -555,11 +557,12 @@ The platform includes GitHub Actions CI/CD pipeline for automated deployment:
 
 | Feature | Implementation |
 |---------|----------------|
+| **JWT Authorization** | Stateless token-based doctor authentication |
+| **Role-based Access** | Strictly limits endpoints to `doctor` and `admin` roles |
 | **Helmet.js** | HTTP security headers |
 | **Rate Limiting** | 100 requests/minute per IP |
 | **CORS Protection** | Configurable allowed origins |
 | **Input Validation** | Sanitization on all endpoints |
-| **API Key Auth** | Required for EHR integration |
 | **Environment Isolation** | Separate dev/prod configs |
 
 ---
