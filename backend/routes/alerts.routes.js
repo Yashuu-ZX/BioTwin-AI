@@ -8,7 +8,6 @@
 const express = require('express');
 const router = express.Router();
 const Patient = require('../models/Patient');
-const mockDB = require('../data/mockDatabase');
 const { isMongoReady } = require('../config/mongo');
 const { validatePatientId, sanitizeString } = require('../utils/validation');
 const alertsService = require('../services/alerts.service');
@@ -264,18 +263,10 @@ router.post('/:patientId/vitals', async (req, res) => {
       lastUpdated: new Date()
     };
 
-    // Update in database
-    if (isMongoReady()) {
-      await Patient.findOneAndUpdate(
-        { patientId: req.params.patientId },
-        { $set: { vitals: updatedVitals } }
-      );
-    }
-
-    // Update mock DB
-    const mockPatient = mockDB.getPatient(req.params.patientId);
-    if (mockPatient) {
-      mockPatient.vitals = updatedVitals;
+    const patientObj = await Patient.findOne({ patientId: req.params.patientId });
+    if (patientObj) {
+      patientObj.vitals = updatedVitals;
+      await patientObj.save();
     }
 
     // Generate alerts for new vitals
@@ -313,25 +304,16 @@ router.get('/config/thresholds', (req, res) => {
   });
 });
 
-// Helper function to get patient from Mongo or mockDB
 async function getPatient(patientId) {
   let patient = null;
-  
   try {
-    if (isMongoReady()) {
-      patient = await Patient.findOne({ patientId });
-      if (!patient) {
-        patient = await Patient.findOne({ id: patientId });
-      }
+    patient = await Patient.findOne({ patientId });
+    if (!patient) {
+      patient = await Patient.findOne({ id: patientId });
     }
   } catch (e) {
     console.warn('MongoDB query failed:', e.message);
   }
-  
-  if (!patient) {
-    patient = mockDB.getPatient(patientId);
-  }
-  
   return patient;
 }
 

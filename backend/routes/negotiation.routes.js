@@ -13,7 +13,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const negotiationService = require('../services/agentNegotiation.service');
 const { getPatientById } = require('../services/explainability.service');
-const mockDB = require('../data/mockDatabase');
 const Negotiation = require('../models/Negotiation');
 const { isMongoReady } = require('../config/mongo');
 

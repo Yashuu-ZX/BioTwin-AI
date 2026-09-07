@@ -14,12 +14,10 @@ const GenomicVariantSchema = new mongoose.Schema({
   },
   significance: { 
     type: String, 
-    enum: ['Pathogenic', 'Likely Pathogenic', 'VUS', 'Likely Benign', 'Benign', 'Unknown'],
     default: 'Unknown'
   },
   actionability: {
     type: String,
-    enum: ['FDA-approved therapy', 'Clinical trial', 'Guideline recommendation', 'Investigational', 'None'],
     default: 'None'
   },
   source: { type: String },                         // e.g., 'Foundation Medicine', 'Guardant360'
@@ -341,7 +339,7 @@ const PatientSchema = new mongoose.Schema({
     }
   }
   
-}, { timestamps: true, collection: 'patients' });
+}, { timestamps: true, collection: 'patients', optimisticConcurrency: true });
 
 
 // Indexes for common queries

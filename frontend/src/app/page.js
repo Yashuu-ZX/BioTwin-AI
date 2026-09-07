@@ -38,6 +38,7 @@ export default function Home() {
 
   React.useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('biotwin_token')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoggedIn(true);
     }
     apiClient.get('/patient/demo-cases')

@@ -1,4 +1,4 @@
-﻿const { mongoose } = require('../config/mongo');
+const { mongoose } = require('../config/mongo');
 
 const SimulationSchema = new mongoose.Schema({
   patientId: { type: String, required: true, index: true },
@@ -10,5 +10,7 @@ const SimulationSchema = new mongoose.Schema({
   agentAnalysis: { type: mongoose.Schema.Types.Mixed },
   timestamp: { type: Date, default: Date.now }
 }, { timestamps: true, collection: 'simulations' });
+
+SimulationSchema.index({ patientId: 1, timestamp: -1 });
 
 module.exports = mongoose.model('Simulation', SimulationSchema);

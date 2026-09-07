@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const mockDB = require('../data/mockDatabase');
 const digitalTwinService = require('../services/digitalTwin.service');
 const Patient = require('../models/Patient');
 const Simulation = require('../models/Simulation');
@@ -15,14 +14,10 @@ const getPatientRecord = async (patientId) => {
       patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
     }
   } catch (error) {
-    // Log the error for debugging but continue to fallback
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('MongoDB query error, falling back to mockDB:', error.message);
-    }
-    patient = null;
+    console.error('MongoDB query error:', error.message);
   }
 
-  return patient || mockDB.getPatient(patientId);
+  return patient;
 };
 
 router.post('/simulate', async (req, res) => {
@@ -60,17 +55,12 @@ router.post('/simulate', async (req, res) => {
     timestamp: new Date().toISOString()
   };
 
-  // Save to mockDB (in-memory, for current session)
-  mockDB.addSimulation(patientId, simulationRecord);
-
   // Persist to MongoDB Atlas
   try {
-    if (isMongoReady()) {
-      await Simulation.create(simulationRecord);
-      console.log(`Simulation saved to MongoDB for patient: ${patientId}`);
-    }
+    await Simulation.create(simulationRecord);
+    console.log(`Simulation saved to MongoDB for patient: ${patientId}`);
   } catch (dbErr) {
-    console.warn('MongoDB save failed for simulation:', dbErr.message);
+    console.error('MongoDB save failed for simulation:', dbErr.message);
   }
 
   res.json({
@@ -94,9 +84,16 @@ router.get('/simulate/:patientId/history', async (req, res) => {
     return res.status(404).json({ error: 'Patient not found' });
   }
 
+  let history = [];
+  try {
+    history = await Simulation.find({ patientId: req.params.patientId }).sort({ timestamp: -1 });
+  } catch (err) {
+    console.error('Failed to fetch simulation history:', err.message);
+  }
+
   res.json({
     patientId: req.params.patientId,
-    history: mockDB.getSimulations(req.params.patientId)
+    history
   });
 });
 

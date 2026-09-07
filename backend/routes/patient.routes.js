@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const mockDB = require('../data/mockDatabase');
 const { v4: uuidv4 } = require('uuid');
 const intakeService = require('../services/intake.service');
 const Patient = require('../models/Patient');
 const { isMongoReady } = require('../config/mongo');
 const { validatePatientId, validatePatientIntake, sanitizeString } = require('../utils/validation');
+const { authorize, authorizePatientResource } = require('../middleware/auth.middleware');
 
-router.post('/parse-lab', (req, res) => {
+router.post('/parse-lab', authorize('doctor', 'admin'), (req, res) => {
   const { rawText } = req.body;
   if (!rawText) return res.status(400).json({ error: 'rawText required' });
 
@@ -20,25 +20,22 @@ router.post('/parse-lab', (req, res) => {
   }
 });
 
-router.get('/demo-cases', (req, res) => {
+router.get('/demo-cases', authorize('doctor', 'admin'), (req, res) => {
   res.json(intakeService.getDemoCases().map(({ slug, title, disease }) => ({ slug, title, disease })));
 });
 
-router.post('/demo-seed/:slug', async (req, res) => {
+router.post('/demo-seed/:slug', authorize('doctor', 'admin'), async (req, res) => {
   const demo = intakeService.getDemoCases().find((item) => item.slug === req.params.slug);
   if (!demo) return res.status(404).json({ error: 'Demo case not found' });
 
   try {
     const structuredProfile = intakeService.processIntake(demo.payload);
     const newPatient = { id: structuredProfile.patientId, ...structuredProfile };
-    mockDB.addPatient(newPatient);
-
     try {
-      if (isMongoReady()) {
-        await Patient.create(newPatient);
-      }
+      await Patient.create(newPatient);
     } catch (dbErr) {
       console.warn('MongoDB save failed for demo case:', dbErr.message);
+      return res.status(500).json({ error: 'Database error' });
     }
 
     res.status(201).json({
@@ -53,7 +50,7 @@ router.post('/demo-seed/:slug', async (req, res) => {
 });
 
 // Add new Intake Endpoint
-router.post('/intake', async (req, res) => {
+router.post('/intake', authorize('doctor', 'admin'), async (req, res) => {
   try {
     const rawData = req.body;
     
@@ -72,16 +69,12 @@ router.post('/intake', async (req, res) => {
       ...structuredProfile
     };
     
-    // Save to Mock DB for legacy
-    mockDB.addPatient(newPatient);
-    
     // Save to MongoDB
     try {
-      if (isMongoReady()) {
       await Patient.create(newPatient);
-      }
     } catch (dbErr) {
-      console.warn("MongoDB save failed, relying on mockDB:", dbErr.message);
+      console.error("MongoDB save failed:", dbErr.message);
+      return res.status(500).json({ error: 'Database error' });
     }
     
     // We send back exactly what is required for the Next Layer
@@ -99,7 +92,7 @@ router.post('/intake', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authorize('doctor', 'admin'), async (req, res) => {
   const patientData = req.body;
   
   // Validate required fields
@@ -130,20 +123,18 @@ router.post('/', async (req, res) => {
     createdAt: new Date()
   };
 
-  mockDB.addPatient(newPatient);
   try {
-    if (isMongoReady()) {
-      await Patient.create(newPatient);
-      console.log(`Patient saved to MongoDB: ${newPatient.patientId}`);
-    }
+    await Patient.create(newPatient);
+    console.log(`Patient saved to MongoDB: ${newPatient.patientId}`);
   } catch(e) {
-    console.warn('MongoDB save failed for patient:', e.message);
+    console.error('MongoDB save failed for patient:', e.message);
+    return res.status(500).json({ error: 'Database error' });
   }
   
   res.status(201).json(newPatient);
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authorizePatientResource, async (req, res) => {
   // Validate patient ID
   const patientIdValidation = validatePatientId(req.params.id);
   if (!patientIdValidation.valid) {
@@ -152,36 +143,24 @@ router.get('/:id', async (req, res) => {
 
   let patient;
   try {
-     if (isMongoReady()) {
-     // try Mongo first
-      const queryPatient = await Patient.findOne({ patientId: req.params.id });
-      // fallback if using generic ID field in some places
-      if (queryPatient) patient = queryPatient;
-      if (!patient) patient = await Patient.findOne({ id: req.params.id });
-     }
+    const queryPatient = await Patient.findOne({ patientId: req.params.id });
+    if (queryPatient) patient = queryPatient;
+    if (!patient) patient = await Patient.findOne({ id: req.params.id });
   } catch(e) {
     console.warn('MongoDB query failed for patient lookup:', e.message);
-  }
-  
-  if (!patient) {
-     patient = mockDB.getPatient(req.params.id);
   }
   
   if (!patient) return res.status(404).json({ error: "Patient not found" });
   res.json(patient);
 });
 
-router.get('/', async (req, res) => {
+router.get('/', authorize('doctor', 'admin'), async (req, res) => {
   let patients = [];
   try {
-     if (isMongoReady()) {
-      patients = await Patient.find({});
-     }
+    patients = await Patient.find({});
   } catch(e) {
     console.warn('MongoDB query failed for patient list:', e.message);
   }
-  
-  if (patients.length === 0) patients = mockDB.getAllPatients();
   
   res.json(patients);
 });

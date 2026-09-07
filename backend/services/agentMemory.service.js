@@ -6,13 +6,8 @@
  * reflective pattern matching.
  */
 
-// In-memory store for agent memories (simplified)
-const agentMemories = {
-  geneticist: [],
-  pharmacologist: [],
-  endocrinologist: [],
-  hera: []
-};
+const AgentMemory = require('../models/AgentMemory');
+const { isMongoReady } = require('../config/mongo');
 
 // Memory types
 const MEMORY_TYPES = {
@@ -26,24 +21,32 @@ const MEMORY_TYPES = {
 
 const MAX_MEMORIES_PER_AGENT = 10;
 
-function storeMemory(agentId, memory) {
-  if (!agentMemories[agentId]) {
-    agentMemories[agentId] = [];
+async function storeMemory(agentId, memory) {
+  if (!isMongoReady()) return null;
+  
+  try {
+    const memoryEntry = await AgentMemory.create({
+      agentId,
+      ...memory
+    });
+    
+    // Cleanup old memories to maintain max limit
+    const count = await AgentMemory.countDocuments({ agentId });
+    if (count > MAX_MEMORIES_PER_AGENT) {
+      const oldestMemories = await AgentMemory.find({ agentId })
+        .sort({ timestamp: 1 })
+        .limit(count - MAX_MEMORIES_PER_AGENT);
+      
+      for (const oldMem of oldestMemories) {
+        await AgentMemory.findByIdAndDelete(oldMem._id);
+      }
+    }
+    
+    return memoryEntry;
+  } catch (err) {
+    console.error('AgentMemory store failed:', err.message);
+    return null;
   }
-  
-  const memoryEntry = {
-    id: `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    agentId,
-    timestamp: Date.now(),
-    ...memory
-  };
-  
-  agentMemories[agentId].unshift(memoryEntry);
-  if (agentMemories[agentId].length > MAX_MEMORIES_PER_AGENT) {
-    agentMemories[agentId] = agentMemories[agentId].slice(0, MAX_MEMORIES_PER_AGENT);
-  }
-  
-  return memoryEntry;
 }
 
 function queryMemories(agentId, query = {}) {
@@ -58,7 +61,11 @@ function getReflections(agentId, patientContext) {
 function recordHeraVeto(patientContext, vetoDetails) {
   return storeMemory('hera', {
     type: MEMORY_TYPES.VETO_RECEIVED,
-    vetoReason: vetoDetails.reason,
+    reason: vetoDetails.reason,
+    drugs: vetoDetails.drugs,
+    estimatedCost: vetoDetails.estimatedCost,
+    targetAgent: vetoDetails.targetAgent,
+    patientId: patientContext?.patientId || patientContext?.id,
     timestamp: Date.now()
   });
 }
@@ -66,6 +73,8 @@ function recordHeraVeto(patientContext, vetoDetails) {
 function recordSuccessfulRecommendation(agentId, patientContext, recommendation) {
   return storeMemory(agentId, {
     type: MEMORY_TYPES.RECOMMENDATION_SUCCESS,
+    patientId: patientContext?.patientId || patientContext?.id,
+    context: recommendation,
     timestamp: Date.now()
   });
 }
@@ -88,14 +97,30 @@ function generateReflectionMessage(agentId, patientContext) {
   return null;
 }
 
-function getAllMemories() {
-  return agentMemories;
+async function getAllMemories() {
+  if (!isMongoReady()) return {};
+  try {
+    const all = await AgentMemory.find().sort({ timestamp: -1 }).lean();
+    const grouped = {};
+    for (const mem of all) {
+      if (!grouped[mem.agentId]) grouped[mem.agentId] = [];
+      grouped[mem.agentId].push(mem);
+    }
+    return grouped;
+  } catch (err) {
+    console.error('Failed to get all memories:', err.message);
+    return {};
+  }
 }
 
-function clearAllMemories() {
-  Object.keys(agentMemories).forEach(key => {
-    agentMemories[key] = [];
-  });
+async function clearAllMemories() {
+  if (isMongoReady()) {
+    try {
+      await AgentMemory.deleteMany({});
+    } catch (err) {
+      console.error('Failed to clear memories:', err.message);
+    }
+  }
 }
 
 module.exports = {

@@ -24,7 +24,6 @@ const getMetricStyle = (type, value) => {
 };
 
 // StatCard component - moved outside to prevent recreation on each render
-// eslint-disable-next-line no-unused-vars
 const StatCard = ({ title, value, unit, icon: IconComponent, type }) => {
   const style = getMetricStyle(type, value);
   const TrendIcon = style.icon;

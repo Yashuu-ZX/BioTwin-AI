@@ -5,7 +5,6 @@ const router = express.Router();
 const PDFDocument = require('pdfkit');
 const explainService = require('../services/explainability.service');
 const Patient = require('../models/Patient');
-const mockDB = require('../data/mockDatabase');
 const { isMongoReady } = require('../config/mongo');
 
 // POST /api/explain/insights - Get Feature Importance (Explainable AI)
@@ -16,12 +15,9 @@ router.post('/insights', async (req, res) => {
   try {
     let patient;
     try {
-      if (isMongoReady()) {
-        patient = await Patient.findOne({ patientId: patientId });
-      }
-      patient = patient || mockDB.getPatient(patientId);
+      patient = await Patient.findOne({ patientId: patientId });
     } catch(e) {
-      patient = mockDB.getPatient(patientId);
+      console.error('MongoDB query error:', e.message);
     }
     
     if (!patient) return res.status(404).json({ error: "Patient Twin not found." });

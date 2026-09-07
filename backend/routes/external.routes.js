@@ -3,7 +3,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const mockDB = require('../data/mockDatabase');
+const WearableEvent = require('../models/WearableEvent');
 
 // HMS API Key from environment variable
 const getHMSApiKey = () => process.env.HMS_API_KEY;
@@ -72,7 +72,7 @@ router.get('/ehr-data/:patientId', requireHMSAuth, (req, res) => {
 });
 
 // POST /api/external/wearable-stream - IoT Ingestion Endpoint
-router.post('/wearable-stream', (req, res) => {
+router.post('/wearable-stream', async (req, res) => {
   const { deviceId, metrics } = req.body;
   
   if (!deviceId || typeof deviceId !== 'string') {
@@ -97,11 +97,15 @@ router.post('/wearable-stream', (req, res) => {
     console.log(`[IoT INGEST] Stream received from wearable ${deviceId}: HR ${metrics.heartRate || 'N/A'} bpm`);
   }
   
-  mockDB.addWearableEvent(deviceId, {
-    deviceId,
-    metrics,
-    timestamp: new Date().toISOString()
-  });
+  try {
+    await WearableEvent.create({
+      deviceId,
+      metrics,
+      timestamp: new Date()
+    });
+  } catch (err) {
+    console.error('Failed to save WearableEvent:', err.message);
+  }
   
   res.status(202).json({
     status: "accepted",
@@ -109,11 +113,17 @@ router.post('/wearable-stream', (req, res) => {
   });
 });
 
-router.get('/wearable-stream/:deviceId', (req, res) => {
-  res.json({
-    deviceId: req.params.deviceId,
-    history: mockDB.getWearableEvents(req.params.deviceId)
-  });
+router.get('/wearable-stream/:deviceId', async (req, res) => {
+  try {
+    const history = await WearableEvent.find({ deviceId: req.params.deviceId }).sort({ timestamp: -1 }).limit(100);
+    res.json({
+      deviceId: req.params.deviceId,
+      history
+    });
+  } catch (err) {
+    console.error('Failed to fetch wearable history:', err.message);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 module.exports = router;

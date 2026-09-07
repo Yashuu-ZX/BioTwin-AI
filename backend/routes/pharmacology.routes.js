@@ -8,7 +8,6 @@
 const express = require('express');
 const router = express.Router();
 const Patient = require('../models/Patient');
-const mockDB = require('../data/mockDatabase');
 const { isMongoReady } = require('../config/mongo');
 const { validatePatientId, sanitizeString } = require('../utils/validation');
 const pharmacologyService = require('../services/pharmacology.service');
@@ -214,19 +213,10 @@ router.post('/:patientId/add-medication', async (req, res) => {
       prescriber: medication.prescriber || ''
     };
 
-    // Update in database
-    if (isMongoReady()) {
-      await Patient.findOneAndUpdate(
-        { patientId: req.params.patientId },
-        { $push: { medications: newMedication } }
-      );
-    }
-    
-    // Update mock DB
-    const mockPatient = mockDB.getPatient(req.params.patientId);
-    if (mockPatient) {
-      mockPatient.medications = mockPatient.medications || [];
-      mockPatient.medications.push(newMedication);
+    const patientObj = await Patient.findOne({ patientId: req.params.patientId });
+    if (patientObj) {
+      patientObj.medications.push(newMedication);
+      await patientObj.save();
     }
 
     res.status(201).json({
@@ -286,19 +276,10 @@ router.post('/:patientId/add-allergy', async (req, res) => {
       [newAllergy]
     );
 
-    // Update in database
-    if (isMongoReady()) {
-      await Patient.findOneAndUpdate(
-        { patientId: req.params.patientId },
-        { $push: { allergies: newAllergy } }
-      );
-    }
-    
-    // Update mock DB
-    const mockPatient = mockDB.getPatient(req.params.patientId);
-    if (mockPatient) {
-      mockPatient.allergies = mockPatient.allergies || [];
-      mockPatient.allergies.push(newAllergy);
+    const patientObj = await Patient.findOne({ patientId: req.params.patientId });
+    if (patientObj) {
+      patientObj.allergies.push(newAllergy);
+      await patientObj.save();
     }
 
     res.status(201).json({
@@ -316,25 +297,16 @@ router.post('/:patientId/add-allergy', async (req, res) => {
   }
 });
 
-// Helper function to get patient from Mongo or mockDB
 async function getPatient(patientId) {
   let patient = null;
-  
   try {
-    if (isMongoReady()) {
-      patient = await Patient.findOne({ patientId });
-      if (!patient) {
-        patient = await Patient.findOne({ id: patientId });
-      }
+    patient = await Patient.findOne({ patientId });
+    if (!patient) {
+      patient = await Patient.findOne({ id: patientId });
     }
   } catch (e) {
     console.warn('MongoDB query failed:', e.message);
   }
-  
-  if (!patient) {
-    patient = mockDB.getPatient(patientId);
-  }
-  
   return patient;
 }
 

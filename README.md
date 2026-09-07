@@ -233,8 +233,8 @@ BioTwin employs four specialized AI agents that collaborate using a consensus-ba
 | Technology | Purpose |
 |------------|---------|
 | **React 19** | UI framework |
-| **Vite 7** | Build tool / dev server |
-| **React Router 7** | Client-side routing |
+| **Next.js 16** | React Framework |
+| **App Router** | Next.js App Router |
 | **TailwindCSS 4** | Utility-first styling |
 | **Recharts** | Data visualization |
 | **Axios** | HTTP client |
@@ -280,7 +280,7 @@ bio_twin/
 │   ├── Dockerfile                    # Container configuration
 │   └── package.json
 │
-├── frontend/                         # React + Vite SPA
+├── frontend/                         # Next.js Application
 │   ├── src/
 │   │   ├── api/
 │   │   │   └── apiClient.js          # Axios HTTP client
@@ -301,7 +301,7 @@ bio_twin/
 │   │   ├── data/                     # Static data/configs
 │   │   ├── App.jsx                   # Main router/layout
 │   │   └── main.jsx                  # React entry point
-│   ├── vite.config.js
+│   ├── next.config.mjs
 │   └── package.json
 │
 ├── screenshots/                      # Documentation images
@@ -361,13 +361,13 @@ AI_TEMPERATURE=0.3
 AI_MAX_TOKENS=2000
 
 # CORS
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:3000
 ```
 
 #### Frontend (`frontend/.env`)
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api
 ```
 
 ### Running the Application
@@ -383,7 +383,7 @@ npm run dev
 # Terminal 2: Start Frontend
 cd frontend
 npm run dev
-# App opens on http://localhost:5173
+# App opens on http://localhost:3000
 ```
 
 #### Production Mode
@@ -396,7 +396,7 @@ npm start
 # Frontend
 cd frontend
 npm run build
-npm run preview
+npm run start
 ```
 
 ---

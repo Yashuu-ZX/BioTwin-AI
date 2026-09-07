@@ -8,7 +8,6 @@
 const express = require('express');
 const router = express.Router();
 const trialsService = require('../services/trials.service');
-const mockDB = require('../data/mockDatabase');
 const Patient = require('../models/Patient');
 const TrialMatch = require('../models/TrialMatch');
 const { isMongoReady } = require('../config/mongo');
@@ -19,13 +18,11 @@ const { isMongoReady } = require('../config/mongo');
 async function getPatient(patientId) {
   let patient = null;
   try {
-    if (isMongoReady()) {
-      patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
-    }
+    patient = await Patient.findOne({ patientId }) || await Patient.findOne({ id: patientId });
   } catch (e) {
     console.warn('MongoDB patient lookup failed:', e.message);
   }
-  return patient || mockDB.getPatient(patientId);
+  return patient;
 }
 
 /**
@@ -44,7 +41,7 @@ router.post('/match/:patientId', async (req, res) => {
       });
     }
 
-    const matchResults = trialsService.matchPatientToTrials(patient);
+    const matchResults = await trialsService.matchPatientToTrials(patient);
 
     // Persist match result to MongoDB
     try {
@@ -165,7 +162,7 @@ router.get('/list/all', (_req, res) => {
  * Quick trial matching without full patient record
  * Accepts partial patient data in request body
  */
-router.post('/quick-match', (req, res) => {
+router.post('/quick-match', async (req, res) => {
   try {
     const partialPatient = req.body;
     
@@ -188,7 +185,7 @@ router.post('/quick-match', (req, res) => {
     partialPatient.patientId = partialPatient.patientId || `QUICK-${Date.now()}`;
     partialPatient.name = partialPatient.name || 'Quick Match Patient';
     
-    const matchResults = trialsService.matchPatientToTrials(partialPatient);
+    const matchResults = await trialsService.matchPatientToTrials(partialPatient);
     
     res.json({
       success: true,

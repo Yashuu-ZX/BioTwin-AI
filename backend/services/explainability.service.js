@@ -1,21 +1,16 @@
 // Layer 6: Explainability & Advanced Intelligence Engine
 
 const digitalTwinService = require('./digitalTwin.service');
-const mockDB = require('../data/mockDatabase');
 const Patient = require('../models/Patient');
 const { isMongoReady } = require('../config/mongo');
 
 const getPatientById = async (patientId) => {
-  let patient;
+  let patient = null;
   try {
-    if (isMongoReady()) {
-      patient = await Patient.findOne({ patientId: patientId });
-    }
-    patient = patient || mockDB.getPatient(patientId);
+    patient = await Patient.findOne({ patientId: patientId });
   } catch (e) {
-    patient = mockDB.getPatient(patientId);
+    console.error('MongoDB query error:', e.message);
   }
-
   return patient;
 };
 

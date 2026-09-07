@@ -21,6 +21,7 @@ const DoctorDashboard = () => {
     }
 
     if (userData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUser(JSON.parse(userData));
     }
 
