@@ -275,6 +275,10 @@ async function analyzeWithAgent(agentType, patient, additionalContext = {}) {
     ? `\n\nOTHER AGENT PROPOSALS TO CONSIDER:\n${JSON.stringify(additionalContext.proposals, null, 2)}`
     : '';
 
+  const steeringInfo = additionalContext.steeringConstraints && additionalContext.steeringConstraints.length > 0
+    ? `\n\nCRITICAL CLINICIAN STEERING CONSTRAINTS (MUST OBEY):\n${additionalContext.steeringConstraints.map(c => `- ${c.constraint}`).join('\n')}`
+    : '';
+
   try {
     const completion = await openai.chat.completions.create({
       model: MODEL,
@@ -291,6 +295,7 @@ async function analyzeWithAgent(agentType, patient, additionalContext = {}) {
 
 ${patientSummary}
 ${contextInfo}
+${steeringInfo}
 
 Respond with valid JSON only. No markdown, no code blocks, just the JSON object.`
         }
@@ -435,7 +440,7 @@ ${patient.medicalHistory.familyHistory}`);
 /**
  * Generate final consensus recommendation based on all agent analyses
  */
-async function generateConsensusRecommendation(patient, agentAnalyses) {
+async function generateConsensusRecommendation(patient, agentAnalyses, steeringConstraints = []) {
   const systemPrompt = `You are the BioTwin Consensus Engine. Your job is to synthesize analyses from multiple specialist AI agents into a single, coherent treatment recommendation.
 
 You have received analyses from:
@@ -482,6 +487,10 @@ OUTPUT FORMAT (JSON):
 Create a SPECIFIC recommendation for THIS patient based on their actual conditions, current medications, and constraints. Do NOT give generic advice.`;
 
   const patientSummary = formatPatientForPrompt(patient);
+  
+  const steeringInfo = steeringConstraints && steeringConstraints.length > 0
+    ? `\n\nCRITICAL CLINICIAN STEERING CONSTRAINTS (MUST OBEY):\n${steeringConstraints.map(c => `- ${c.constraint}`).join('\n')}`
+    : '';
 
   try {
     const completion = await openai.chat.completions.create({
@@ -497,6 +506,7 @@ Create a SPECIFIC recommendation for THIS patient based on their actual conditio
           role: 'user',
           content: `PATIENT DATA:
 ${patientSummary}
+${steeringInfo}
 
 SPECIALIST ANALYSES:
 

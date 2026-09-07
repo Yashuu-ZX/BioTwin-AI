@@ -313,7 +313,9 @@ async function geneticistAnalyze(session) {
       });
       
       analysis = await retryAICall(
-        () => openaiClient.analyzeWithAgent('geneticist', patient),
+        () => openaiClient.analyzeWithAgent('geneticist', patient, {
+          steeringConstraints: session.steeringConstraints
+        }),
         0, 0
       );
       analysis.aiGenerated = true;
@@ -414,7 +416,8 @@ async function pharmacologistAnalyze(session) {
       
       analysis = await retryAICall(
         () => openaiClient.analyzeWithAgent('pharmacologist', patient, {
-          geneticistAnalysis: session.agentAnalyses.geneticist
+          geneticistAnalysis: session.agentAnalyses.geneticist,
+          steeringConstraints: session.steeringConstraints
         }),
         0, 0
       );
@@ -511,7 +514,8 @@ async function endocrinologistAnalyze(session) {
       analysis = await retryAICall(
         () => openaiClient.analyzeWithAgent('endocrinologist', patient, {
           geneticistAnalysis: session.agentAnalyses.geneticist,
-          pharmacologistAnalysis: session.agentAnalyses.pharmacologist
+          pharmacologistAnalysis: session.agentAnalyses.pharmacologist,
+          steeringConstraints: session.steeringConstraints
         }),
         0, 0
       );
@@ -616,7 +620,8 @@ async function heraAnalyze(session) {
         () => openaiClient.analyzeWithAgent('hera', patient, {
           geneticistAnalysis: session.agentAnalyses.geneticist,
           pharmacologistAnalysis: session.agentAnalyses.pharmacologist,
-          endocrinologistAnalysis: session.agentAnalyses.endocrinologist
+          endocrinologistAnalysis: session.agentAnalyses.endocrinologist,
+          steeringConstraints: session.steeringConstraints
         }),
         0, 0
       );
@@ -706,7 +711,8 @@ async function generateConsensus(session) {
       consensus = await retryAICall(
         () => openaiClient.generateConsensusRecommendation(
           session.patient,
-          session.agentAnalyses
+          session.agentAnalyses,
+          session.steeringConstraints
         ),
         0, 0
       );
