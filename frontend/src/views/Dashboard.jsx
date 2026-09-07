@@ -442,11 +442,11 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
   // Run the consensus deliberation using REAL backend AI agents
   const runConsensusDeliberation = useCallback(async () => {
     setConsensusStatus('running');
-    setDeliberationMessages([]);
+    setDeliberationMessages(prev => prev.filter(msg => msg.agent === 'clinician' || msg.type === 'steering_acknowledgment'));
     setConsensusResult(null);
     
     // Add initial system message
-    setDeliberationMessages([{
+    setDeliberationMessages(prev => [...prev, {
       id: nextId(),
       agent: 'system',
       type: 'system',
@@ -455,8 +455,15 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
     }]);
     
     try {
+      // Extract constraints from clinician steering messages before starting
+      const preConstraints = deliberationMessages
+        .filter(msg => msg.agent === 'clinician' && msg.type === 'steering_intervention')
+        .map(msg => msg.constraint);
+
       // Call the real backend API for AI-powered agent negotiation
-      const response = await startNegotiationSync(id);
+      const response = await startNegotiationSync(id, { 
+        treatmentContext: { constraints: preConstraints } 
+      });
       
       // Store session ID for HITL steering interventions
       if (response.session?.sessionId) {
@@ -676,7 +683,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
   // Reset consensus state
   const resetConsensus = useCallback(() => {
     setConsensusStatus('idle');
-    setDeliberationMessages([]);
+    setDeliberationMessages(prev => prev.filter(msg => msg.agent === 'clinician' || msg.type === 'steering_acknowledgment'));
     setConsensusResult(null);
   }, []);
 
@@ -1994,8 +2001,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
                     onChange={(e) => setSteeringInput(e.target.value)}
                     onFocus={() => setIsSteeringActive(true)}
                     onBlur={() => !steeringInput && setIsSteeringActive(false)}
-                    placeholder={consensusStatus === 'running' ? "Inject constraint... (e.g., 'Patient had GI issues with Metformin')" : "Start consensus to enable steering..."}
-                    disabled={consensusStatus !== 'running'}
+                    placeholder={consensusStatus === 'running' ? "Inject constraint... (e.g., 'Patient had GI issues with Metformin')" : "Inject constraint before/after simulation..."}
                     className={`flex-1 bg-transparent text-sm font-mono outline-none placeholder:text-slate-400 disabled:opacity-50 ${
                       isSteeringActive ? 'text-amber-800' : 'text-slate-600'
                     }`}
@@ -2171,7 +2177,7 @@ const Dashboard = ({ role = 'doctor', providedId, providedSection }) => {
         <div className="hidden w-[220px] shrink-0 flex-col rounded-[28px] bg-white/70 p-4 md:flex">
           {/* Logo */}
           <div className="mb-5 flex items-center gap-3 rounded-[22px] bg-emerald-100 px-4 py-4">
-            <BrainCircuit className="h-5 w-5 text-emerald-700" />
+            <img src="/logo.jpg" alt="BioTwin Logo" className="h-8 w-8 rounded-lg object-contain bg-white" />
             <div>
               <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">BioTwin AI</p>
               <p className="font-semibold text-sm">Digital Twin</p>
